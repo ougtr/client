@@ -4,12 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { createMission, getMission, updateMission } from '../api/missions';
 import { listUsers } from '../api/users';
 import { listInsurers } from '../api/insurers';
+import { listAgencies } from '../api/insurerAgencies';
 import { listVehicleBrands } from '../api/vehicleBrands';
 import { listGarages } from '../api/garages';
 import { MISSION_STATUSES } from '../constants';
 
 const emptyForm = {
   assureurId: '',
+  assureurAgenceId: '',
   vehiculeMarqueId: '',
   vehiculeMarque: '',
   assureNom: '',
@@ -41,8 +43,10 @@ const MissionFormPage = ({ mode }) => {
   const [form, setForm] = useState(emptyForm);
   const [assignees, setAssignees] = useState([]);
   const [insurers, setInsurers] = useState([]);
+  const [agencies, setAgencies] = useState([]);
   const [brands, setBrands] = useState([]);
   const [garages, setGarages] = useState([]);
+  const [referenceLoading, setReferenceLoading] = useState(isManager);
   const [legacyGarage, setLegacyGarage] = useState(null);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -54,6 +58,16 @@ const MissionFormPage = ({ mode }) => {
   const selectedInsurer = useMemo(
     () => insurers.find((insurer) => String(insurer.id) === String(form.assureurId)),
     [insurers, form.assureurId]
+  );
+  const agenciesForInsurer = useMemo(() => {
+    if (!form.assureurId) {
+      return [];
+    }
+    return agencies.filter((agency) => String(agency.insurerId) === String(form.assureurId));
+  }, [agencies, form.assureurId]);
+  const selectedAgency = useMemo(
+    () => agencies.find((agency) => String(agency.id) === String(form.assureurAgenceId)),
+    [agencies, form.assureurAgenceId]
   );
   const selectedGarage = useMemo(
     () => garages.find((garage) => String(garage.id) === String(form.garageId)),
@@ -68,10 +82,12 @@ const MissionFormPage = ({ mode }) => {
     let cancelled = false;
 
     const loadReferenceData = async () => {
+      setReferenceLoading(true);
       try {
-        const [usersData, insurersData, brandsData, garagesData] = await Promise.all([
+        const [usersData, insurersData, agenciesData, brandsData, garagesData] = await Promise.all([
           listUsers(token),
           listInsurers(token),
+          listAgencies(token),
           listVehicleBrands(token),
           listGarages(token),
         ]);
@@ -80,6 +96,7 @@ const MissionFormPage = ({ mode }) => {
         }
         setAssignees(usersData.filter((user) => ASSIGNABLE_ROLES.includes(user.role)));
         setInsurers(insurersData);
+        setAgencies(agenciesData);
         setBrands(brandsData);
         setGarages(garagesData);
       } catch (err) {
@@ -114,6 +131,7 @@ const MissionFormPage = ({ mode }) => {
         const mission = data.mission;
         setForm({
           assureurId: mission.assureurId ? String(mission.assureurId) : '',
+          assureurAgenceId: mission.assureurAgenceId ? String(mission.assureurAgenceId) : '',
           vehiculeMarqueId: mission.vehiculeMarqueId ? String(mission.vehiculeMarqueId) : '',
           vehiculeMarque: mission.vehiculeMarque || '',
           assureNom: mission.assureNom || '',
@@ -222,6 +240,18 @@ const MissionFormPage = ({ mode }) => {
   }, [insurers, hasInsurers, isEdit, form.assureurId]);
 
   useEffect(() => {
+    if (!form.assureurAgenceId) {
+      return;
+    }
+    const stillValid = agenciesForInsurer.some(
+      (agency) => String(agency.id) === String(form.assureurAgenceId)
+    );
+    if (!stillValid) {
+      setForm((prev) => ({ ...prev, assureurAgenceId: '' }));
+    }
+  }, [agenciesForInsurer, form.assureurAgenceId]);
+
+  useEffect(() => {
     if (!isEdit && hasBrands && !form.vehiculeMarqueId) {
       const first = brands[0];
       setForm((prev) => ({
@@ -255,6 +285,7 @@ const MissionFormPage = ({ mode }) => {
     setForm((prev) => ({
       ...prev,
       assureurId: value,
+      assureurAgenceId: '',
     }));
   };
 
@@ -274,6 +305,14 @@ const MissionFormPage = ({ mode }) => {
     setForm((prev) => ({
       ...prev,
       garageId: value,
+    }));
+  };
+
+  const handleAgencyChange = (event) => {
+    const value = event.target.value;
+    setForm((prev) => ({
+      ...prev,
+      assureurAgenceId: value,
     }));
   };
 
@@ -347,7 +386,7 @@ const MissionFormPage = ({ mode }) => {
       <form className="card form-grid" onSubmit={handleSubmit}>
         <fieldset>
           <legend>Assureur</legend>
-          {!hasInsurers && (
+          {!referenceLoading && !hasInsurers && (
             <p className="alert alert-error">
               Aucun assureur disponible. Ajoutez-en depuis le menu "Assureurs" avant de creer une mission.
             </p>
@@ -374,11 +413,37 @@ const MissionFormPage = ({ mode }) => {
               Contact : {selectedInsurer.contact || 'Non renseigne'}
             </div>
           )}
+          <label className="form-field">
+            <span>Agence d'assurance</span>
+            <select
+              name="assureurAgenceId"
+              value={form.assureurAgenceId}
+              onChange={handleAgencyChange}
+              disabled={!form.assureurId || agenciesForInsurer.length === 0}
+            >
+              <option value="">Aucune agence</option>
+              {agenciesForInsurer.map((agency) => (
+                <option key={agency.id} value={agency.id}>
+                  {agency.nom}
+                </option>
+              ))}
+            </select>
+            {!selectedInsurer && <small className="muted">Choisissez un assureur pour acceder aux agences.</small>}
+            {selectedInsurer && agenciesForInsurer.length === 0 && (
+              <small className="muted">Aucune agence configuree pour cet assureur.</small>
+            )}
+          </label>
+          {selectedAgency && (
+            <div className="muted">
+              <div>Adresse agence : {selectedAgency.adresse || 'Non renseignee'}</div>
+              <div>Telephone agence : {selectedAgency.telephone || 'Non renseigne'}</div>
+            </div>
+          )}
         </fieldset>
 
         <fieldset>
           <legend>Vehicule</legend>
-          {!hasBrands && (
+          {!referenceLoading && !hasBrands && (
             <p className="alert alert-error">
               Aucune marque disponible. Ajoutez-en depuis le menu "Marques" avant de creer une mission.
             </p>
@@ -466,7 +531,7 @@ const MissionFormPage = ({ mode }) => {
 
         <fieldset>
           <legend>Garage</legend>
-          {!hasGarages && (
+          {!referenceLoading && !hasGarages && (
             <p className="alert alert-error">
               Aucun garage disponible. Ajoutez-en depuis le menu "Garages" avant de creer une mission.
             </p>
@@ -552,6 +617,9 @@ const MissionFormPage = ({ mode }) => {
 };
 
 export default MissionFormPage;
+
+
+
 
 
 

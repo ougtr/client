@@ -19,6 +19,9 @@ const MissionListPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const pageSizeOptions = [10, 20, 30];
+  const [pageSize, setPageSize] = useState(pageSizeOptions[0]);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     let active = true;
@@ -84,10 +87,12 @@ const MissionListPage = () => {
   }, [token, isManager]);
 
   const handleFilterChange = (nextFilters) => {
+    setPage(1);
     setFilters(nextFilters);
   };
 
   const handleResetFilters = () => {
+    setPage(1);
     setFilters({});
   };
 
@@ -118,6 +123,42 @@ const MissionListPage = () => {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const totalPages = useMemo(() => {
+    if (!missions.length) {
+      return 1;
+    }
+    return Math.max(1, Math.ceil(missions.length / pageSize));
+  }, [missions, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
+
+  const paginatedMissions = useMemo(() => {
+    if (!missions.length) {
+      return [];
+    }
+    const start = (page - 1) * pageSize;
+    return missions.slice(start, start + pageSize);
+  }, [missions, page, pageSize]);
+
+  const totalItems = missions.length;
+  const currentStart = totalItems ? (page - 1) * pageSize + 1 : 0;
+  const currentEnd = totalItems ? Math.min(page * pageSize, totalItems) : 0;
+
+  const handlePageSizeChange = (event) => {
+    setPageSize(Number(event.target.value));
+    setPage(1);
+  };
+
+  const goToPreviousPage = () => {
+    setPage((current) => Math.max(1, current - 1));
+  };
+
+  const goToNextPage = () => {
+    setPage((current) => Math.min(totalPages, current + 1));
   };
 
   const lastUpdated = useMemo(() => {
@@ -155,14 +196,56 @@ const MissionListPage = () => {
       {loading ? (
         <div className="loading">Chargement...</div>
       ) : (
-        <MissionTable
-          missions={missions}
-          onView={handleViewMission}
-          onEdit={handleEditMission}
-          onDelete={handleDeleteMission}
-          isManager={isManager}
-          deletingId={deletingId}
-        />
+        <>
+          <MissionTable
+            missions={paginatedMissions}
+            onView={handleViewMission}
+            onEdit={handleEditMission}
+            onDelete={handleDeleteMission}
+            isManager={isManager}
+            deletingId={deletingId}
+          />
+          <div className="pagination-bar pagination-bottom">
+            <div className="pagination-info">
+              {totalItems
+                ? `Affichage ${currentStart}-${currentEnd} sur ${totalItems} missions`
+                : 'Aucune mission'}
+            </div>
+            <div className="pagination-controls">
+              <label className="form-field inline-field pagination-size">
+                <span>Par page</span>
+                <select value={pageSize} onChange={handlePageSizeChange}>
+                  {pageSizeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="pagination-buttons">
+                <button
+                  type="button"
+                  className="btn btn-outline pagination-btn"
+                  disabled={page <= 1}
+                  onClick={goToPreviousPage}
+                >
+                  Precedent
+                </button>
+                <span className="pagination-status">
+                  Page {totalItems ? page : 0} / {totalItems ? totalPages : 0}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline pagination-btn"
+                  disabled={page >= totalPages || !totalItems}
+                  onClick={goToNextPage}
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

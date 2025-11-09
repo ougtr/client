@@ -46,5 +46,23 @@ export const deleteMissionPhoto = (token, missionId, photoId) =>
     token,
   });
 
+export const uploadMissionDocuments = (token, id, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('documents', file));
+
+  return request(`/missions/${id}/documents`, {
+    method: 'POST',
+    body: formData,
+    token,
+    isFormData: true,
+  });
+};
+
+export const deleteMissionDocument = (token, missionId, documentId) =>
+  request(`/missions/${missionId}/documents/${documentId}`, {
+    method: 'DELETE',
+    token,
+  });
+
 export const deleteMission = (token, id) =>
   request(`/missions/${id}`, { method: 'DELETE', token });

@@ -28,6 +28,9 @@ const MissionTable = ({ missions, onView, onEdit, onDelete, isManager, deletingI
               <td>
                 <div className="cell-main">{mission.assureurNom}</div>
                 {mission.assureurContact && <div className="cell-sub">{mission.assureurContact}</div>}
+                {mission.assureurAgenceNom && (
+                  <div className="cell-sub">Agence : {mission.assureurAgenceNom}</div>
+                )}
               </td>
               <td>
                 <div className="cell-main">{mission.assureNom}</div>

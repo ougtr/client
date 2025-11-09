@@ -7,8 +7,11 @@ import {
   updateMissionStatus,
   uploadMissionPhotos,
   deleteMissionPhoto,
+  uploadMissionDocuments,
+  deleteMissionDocument,
 } from '../api/missions';
 import PhotoGallery from '../components/PhotoGallery';
+import DocumentList from '../components/DocumentList';
 import StatusBadge from '../components/StatusBadge';
 import { MISSION_STATUSES, PHOTO_LABELS } from '../constants';
 
@@ -21,6 +24,7 @@ const MissionDetailPage = () => {
 
   const [mission, setMission] = useState(null);
   const [photos, setPhotos] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [availableLabels, setAvailableLabels] = useState(PHOTO_LABELS);
   const [labelSearch, setLabelSearch] = useState('');
   const [photoLabel, setPhotoLabel] = useState(PHOTO_LABELS[0] || '');
@@ -30,8 +34,10 @@ const MissionDetailPage = () => {
   const [error, setError] = useState('');
   const [statusError, setStatusError] = useState('');
   const [photoActionError, setPhotoActionError] = useState('');
+  const [documentActionError, setDocumentActionError] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [documentUploading, setDocumentUploading] = useState(false);
 
   const filteredLabels = useMemo(() => {
     const query = labelSearch.trim().toLowerCase();
@@ -55,6 +61,7 @@ const MissionDetailPage = () => {
       const data = await getMission(token, id);
       setMission(data.mission);
       setPhotos(data.photos || []);
+      setDocuments(data.documents || []);
       if (Array.isArray(data.photoLabels) && data.photoLabels.length) {
         setAvailableLabels(data.photoLabels);
       }
@@ -89,7 +96,7 @@ const MissionDetailPage = () => {
     });
   }, [mission, isManager]);
 
-  const canModifyPhotos = useMemo(() => {
+  const canManageAttachments = useMemo(() => {
     if (isManager) {
       return true;
     }
@@ -160,6 +167,52 @@ const MissionDetailPage = () => {
     }
   };
 
+  const handleUploadDocuments = async (event) => {
+    event.preventDefault();
+    setDocumentActionError('');
+    const files = Array.from(event.target.documents.files || []);
+    if (!files.length) {
+      setDocumentActionError('Selectionnez au moins un document');
+      return;
+    }
+
+    setDocumentUploading(true);
+    try {
+      const response = await uploadMissionDocuments(token, id, files);
+      setDocuments(response.documents || []);
+      setMission(response.mission || mission);
+      event.target.reset();
+    } catch (err) {
+      setDocumentActionError(err.message || 'Import impossible');
+    } finally {
+      setDocumentUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (document) => {
+    setDocumentActionError('');
+    try {
+      const response = await deleteMissionDocument(token, id, document.id);
+      setDocuments(response.documents || []);
+      setMission(response.mission || mission);
+    } catch (err) {
+      setDocumentActionError(err.message || 'Suppression impossible');
+      throw err;
+    }
+  };
+
+  const canSubmitUpload = filteredLabels.length > 0 && !uploading;
+
+  const photosAvant = useMemo(
+    () => photos.filter((photo) => (photo.phase || 'avant') === 'avant'),
+    [photos]
+  );
+
+  const photosApres = useMemo(
+    () => photos.filter((photo) => (photo.phase || 'avant') === 'apres'),
+    [photos]
+  );
+
   if (loading) {
     return (
       <div className="page">
@@ -197,8 +250,6 @@ const MissionDetailPage = () => {
     </div>
   );
 
-  const canSubmitUpload = filteredLabels.length > 0 && !uploading;
-
   return (
     <div className="page mission-detail">
       <div className="page-header">
@@ -226,6 +277,9 @@ const MissionDetailPage = () => {
         <div className="info-grid">
           {infoItem('Assureur', mission.assureurNom)}
           {infoItem('Contact assureur', mission.assureurContact)}
+          {infoItem("Agence d'assurance", mission.assureurAgenceNom)}
+          {infoItem('Contact agence', mission.assureurAgenceContact)}
+          {infoItem('Adresse agence', mission.assureurAgenceAdresse)}
           {infoItem('Assure', mission.assureNom)}
           {infoItem('Telephone assure', mission.assureTelephone)}
           {infoItem('Email assure', mission.assureEmail)}
@@ -286,9 +340,9 @@ const MissionDetailPage = () => {
       <section className="card">
         <h2>Photos</h2>
         {photoActionError && <div className="alert alert-error">{photoActionError}</div>}
-        {canModifyPhotos ? (
+        {canManageAttachments ? (
           <form className="upload-form" onSubmit={handleUploadPhotos}>
-            <div className="upload-fields">
+            <div className="upload-fields photo-upload-grid">
               <label className="form-field">
                 <span>Phase</span>
                 <select value={uploadPhase} onChange={(event) => setUploadPhase(event.target.value)}>
@@ -329,22 +383,73 @@ const MissionDetailPage = () => {
                   <small className="muted">Aucun libelle ne correspond a votre recherche.</small>
                 )}
               </label>
-              <label className="form-field">
+              <label className="form-field file-field">
                 <span>Ajouter des photos</span>
                 <input name="photos" type="file" multiple accept="image/*" />
               </label>
-              <button type="submit" className="btn btn-primary" disabled={!canSubmitUpload}>
-                {uploading ? 'Envoi...' : 'Importer'}
-              </button>
+              <div className="upload-submit">
+                <button type="submit" className="btn btn-primary" disabled={!canSubmitUpload}>
+                  {uploading ? 'Envoi...' : 'Importer'}
+                </button>
+              </div>
             </div>
           </form>
         ) : (
           <p className="muted">Seule la personne assignee (agent ou gestionnaire) ou un gestionnaire peut ajouter des photos.</p>
         )}
-        <PhotoGallery
-          photos={photos}
-          canDelete={canModifyPhotos}
-          onDelete={canModifyPhotos ? handleDeletePhoto : undefined}
+        <div className="photo-phase-grid">
+          <div className="photo-phase-card">
+            <div className="photo-phase-header">
+              <h3>Phase &laquo; Avant &raquo;</h3>
+              <span className="muted">{photosAvant.length} fichier(s)</span>
+            </div>
+            <PhotoGallery
+              photos={photosAvant}
+              canDelete={canManageAttachments}
+              onDelete={canManageAttachments ? handleDeletePhoto : undefined}
+            />
+          </div>
+          <div className="photo-phase-card">
+            <div className="photo-phase-header">
+              <h3>Phase &laquo; Apres &raquo;</h3>
+              <span className="muted">{photosApres.length} fichier(s)</span>
+            </div>
+            <PhotoGallery
+              photos={photosApres}
+              canDelete={canManageAttachments}
+              onDelete={canManageAttachments ? handleDeletePhoto : undefined}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Documents</h2>
+        {documentActionError && <div className="alert alert-error">{documentActionError}</div>}
+        {canManageAttachments ? (
+          <form className="upload-form" onSubmit={handleUploadDocuments}>
+            <div className="upload-fields document-upload-grid">
+              <label className="form-field file-field">
+                <span>Ajouter des documents</span>
+                <input name="documents" type="file" multiple accept=".pdf,.doc,.docx,.txt" />
+                <small className="muted">Formats acceptes : PDF, DOC, DOCX ou TXT.</small>
+              </label>
+              <div className="upload-submit">
+                <button type="submit" className="btn btn-primary" disabled={documentUploading}>
+                  {documentUploading ? 'Envoi...' : 'Importer'}
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <p className="muted">
+            Seule la personne assignee (agent ou gestionnaire) ou un gestionnaire peut ajouter des documents.
+          </p>
+        )}
+        <DocumentList
+          documents={documents}
+          canDelete={canManageAttachments}
+          onDelete={canManageAttachments ? handleDeleteDocument : undefined}
         />
       </section>
     </div>
