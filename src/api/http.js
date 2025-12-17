@@ -1,4 +1,17 @@
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+const resolveApiUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:4000/api';
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin.replace(/\/$/, '')}/api`;
+  }
+  return 'http://localhost:4000/api';
+};
+
+const API_URL = resolveApiUrl();
 const ASSET_URL = API_URL.replace(/\/api$/, '');
 
 const clearSessionAndRedirect = () => {
