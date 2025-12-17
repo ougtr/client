@@ -124,8 +124,45 @@
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
   font-weight: 600;
   font-size: 1.1rem;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: inherit;
+}
+
+.logo img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  border-radius: 0.6rem;
+}
+
+.logo-sm img {
+  height: 48px;
+}
+
+.logo-md img {
+  height: 72px;
+}
+
+.logo-lg img {
+  height: 120px;
+}
+
+.logo-text {
+  font-weight: 600;
+  color: inherit;
 }
 
 .header-actions {
@@ -578,8 +615,39 @@ legend {
   padding: 2rem;
 }
 
+.auth-panel {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
 .auth-card {
   width: min(420px, 100%);
+}
+
+.auth-logo {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  text-align: center;
+  color: #0f172a;
+}
+
+.auth-logo img {
+  max-width: none;
+  width: clamp(220px, 60vw, 520px);
+  height: auto;
+  border-radius: 1.5rem;
+}
+
+.auth-logo .logo-text {
+  font-size: 1.1rem;
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 768px) {
@@ -801,4 +869,3 @@ legend {
     justify-content: flex-start;
   }
 }
-

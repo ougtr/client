@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Logo from './Logo';
 
 const AppLayout = () => {
   const navigate = useNavigate();
@@ -15,8 +16,8 @@ const AppLayout = () => {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/missions" className="brand">
-          Gestion Missions Auto
+        <Link to="/missions" className="brand" aria-label="Gestion Missions Auto">
+          <Logo size="md" withText />
         </Link>
         <div className="header-actions">
           <span className="user-info">{user?.login} ({user?.role})</span>
