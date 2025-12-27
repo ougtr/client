@@ -58,8 +58,9 @@ const DocumentList = ({ documents = [], canDelete = false, onDelete }) => {
                 href={`${ASSET_URL}${doc.url}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                download={displayName || true}
               >
-                Ouvrir
+                Télécharger
               </a>
               {canDelete && (
                 <button
