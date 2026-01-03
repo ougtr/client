@@ -35,6 +35,27 @@ const ROLE_LABELS = {
   AGENT: 'Agent',
 };
 
+const formatCirculationInputValue = (value) => {
+  if (!value) {
+    return '';
+  }
+  const trimmed = String(value).trim();
+  const isoPattern = /^(\d{4})-(\d{2})-(\d{2})/;
+  if (isoPattern.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  const slashMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return `${year}-${month}-${day}`;
+  }
+  const yearMatch = trimmed.match(/^(\d{4})$/);
+  if (yearMatch) {
+    return `${yearMatch[1]}-01-01`;
+  }
+  return '';
+};
+
 const MissionFormPage = ({ mode }) => {
   const isEdit = mode === 'edit';
   const { token, isManager } = useAuth();
@@ -139,7 +160,7 @@ const MissionFormPage = ({ mode }) => {
           assureEmail: mission.assureEmail || '',
           vehiculeModele: mission.vehiculeModele || '',
           vehiculeImmatriculation: mission.vehiculeImmatriculation || '',
-          vehiculeAnnee: mission.vehiculeAnnee ? String(mission.vehiculeAnnee) : '',
+          vehiculeAnnee: formatCirculationInputValue(mission.vehiculeAnnee),
           sinistreType: mission.sinistreType || '',
           sinistreCirconstances: mission.sinistreCirconstances || '',
           sinistreDate: mission.sinistreDate || '',
@@ -262,17 +283,6 @@ const MissionFormPage = ({ mode }) => {
     }
   }, [brands, hasBrands, isEdit, form.vehiculeMarqueId]);
 
-  useEffect(() => {
-    if (!isEdit && hasGarages && !form.garageId) {
-      const first = garages[0];
-      setLegacyGarage(null);
-      setForm((prev) => ({
-        ...prev,
-        garageId: String(first.id),
-      }));
-    }
-  }, [garages, hasGarages, isEdit, form.garageId]);
-
   const statusOptions = useMemo(() => MISSION_STATUSES, []);
 
   const handleChange = (event) => {
@@ -326,14 +336,6 @@ const MissionFormPage = ({ mode }) => {
       setError('Ajoutez au moins une marque de vehicule avant de creer une mission.');
       return;
     }
-    if (!hasGarages) {
-      setError('Ajoutez au moins un garage avant de creer une mission.');
-      return;
-    }
-    if (!form.garageId) {
-      setError('Selectionnez un garage pour la mission.');
-      return;
-    }
 
     setSaving(true);
     setError('');
@@ -342,7 +344,7 @@ const MissionFormPage = ({ mode }) => {
       assureurId: form.assureurId ? Number(form.assureurId) : null,
       vehiculeMarqueId: form.vehiculeMarqueId ? Number(form.vehiculeMarqueId) : null,
       garageId: form.garageId ? Number(form.garageId) : null,
-      vehiculeAnnee: form.vehiculeAnnee ? Number(form.vehiculeAnnee) : null,
+      vehiculeAnnee: form.vehiculeAnnee || null,
       agentId: form.agentId ? Number(form.agentId) : null,
     };
 
@@ -478,8 +480,13 @@ const MissionFormPage = ({ mode }) => {
             />
           </label>
           <label className="form-field">
-            <span>Annee</span>
-            <input name="vehiculeAnnee" value={form.vehiculeAnnee} onChange={handleChange} />
+            <span>Date de mise en circulation</span>
+            <input
+              name="vehiculeAnnee"
+              type="date"
+              value={form.vehiculeAnnee || ''}
+              onChange={handleChange}
+            />
           </label>
         </fieldset>
 
@@ -532,24 +539,24 @@ const MissionFormPage = ({ mode }) => {
         <fieldset>
           <legend>Garage</legend>
           {!referenceLoading && !hasGarages && (
-            <p className="alert alert-error">
-              Aucun garage disponible. Ajoutez-en depuis le menu "Garages" avant de creer une mission.
+            <p className="alert alert-info">
+              Aucun garage reference pour le moment. Vous pouvez creer la mission sans garage ou en ajouter
+              depuis le menu "Garages".
             </p>
           )}
           {isEdit && legacyGarage && !form.garageId && (
             <p className="alert alert-info">
               Garage actuel non reference
               {legacyGarage.nom ? ` (${legacyGarage.nom})` : ''}.
-              Selectionnez un garage dans la liste ci-dessous pour poursuivre.
+              Vous pouvez en selectionner un dans la liste ci-dessous ou laisser ce champ vide.
             </p>
           )}
-          <label className="form-field required">
+          <label className="form-field">
             <span>Garage</span>
             <select
               name="garageId"
               value={form.garageId}
               onChange={handleGarageChange}
-              required
               disabled={!hasGarages}
             >
               <option value="">Selectionner un garage</option>
@@ -603,7 +610,7 @@ const MissionFormPage = ({ mode }) => {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={saving || !hasInsurers || !hasBrands || !hasGarages}
+            disabled={saving || !hasInsurers || !hasBrands}
           >
             {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>

@@ -17,6 +17,22 @@ import { MISSION_STATUSES, PHOTO_LABELS } from '../constants';
 
 const formatStatusLabel = (status) => status.replace(/_/g, ' ');
 
+const formatCirculationDate = (value) => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  const slashMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    return trimmed;
+  }
+  if (/^\d{4}$/.test(trimmed)) {
+    return `01/01/${trimmed}`;
+  }
+  const parsed = dayjs(trimmed);
+  return parsed.isValid() ? parsed.format('DD/MM/YYYY') : trimmed;
+};
+
 const MissionDetailPage = () => {
   const { token, isManager, isAgent, user } = useAuth();
   const navigate = useNavigate();
@@ -293,7 +309,10 @@ const MissionDetailPage = () => {
           {infoItem('Marque', mission.vehiculeMarque)}
           {infoItem('Modele', mission.vehiculeModele)}
           {infoItem('Immatriculation', mission.vehiculeImmatriculation)}
-          {infoItem('Annee', mission.vehiculeAnnee)}
+          {infoItem(
+            'Date de mise en circulation',
+            mission.vehiculeAnnee ? formatCirculationDate(mission.vehiculeAnnee) : null
+          )}
         </div>
       </section>
 
