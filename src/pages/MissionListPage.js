@@ -22,6 +22,9 @@ const MissionListPage = () => {
   const pageSizeOptions = [10, 20, 30];
   const [pageSize, setPageSize] = useState(pageSizeOptions[0]);
   const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -45,10 +48,17 @@ const MissionListPage = () => {
       setLoading(true);
       setError('');
       try {
-        const data = await listMissions(token, normalizedFilters);
+        const data = await listMissions(token, { ...normalizedFilters, page, pageSize });
         if (!active) return;
         setMissions(data.missions || []);
         setStatuses(data.statuses || []);
+        setTotalItems(typeof data.total === 'number' ? data.total : (data.missions?.length || 0));
+        setLastUpdated(
+          data.latestUpdate ? dayjs(data.latestUpdate).format('DD/MM/YYYY HH:mm') : null
+        );
+        if (typeof data.page === 'number' && data.page !== page) {
+          setPage(data.page);
+        }
       } catch (err) {
         if (!active) return;
         setError(err.message || 'Impossible de charger les missions');
@@ -63,7 +73,7 @@ const MissionListPage = () => {
     return () => {
       active = false;
     };
-  }, [token, filters]);
+  }, [token, filters, page, pageSize, reloadKey]);
 
   useEffect(() => {
     if (!isManager) {
@@ -117,7 +127,7 @@ const MissionListPage = () => {
     setDeletingId(missionId);
     try {
       await deleteMission(token, missionId);
-      setMissions((prev) => prev.filter((mission) => mission.id !== missionId));
+      setReloadKey((prev) => prev + 1);
     } catch (err) {
       setError(err.message || 'Suppression impossible');
     } finally {
@@ -126,27 +136,15 @@ const MissionListPage = () => {
   };
 
   const totalPages = useMemo(() => {
-    if (!missions.length) {
+    if (!totalItems) {
       return 1;
     }
-    return Math.max(1, Math.ceil(missions.length / pageSize));
-  }, [missions, pageSize]);
+    return Math.max(1, Math.ceil(totalItems / pageSize));
+  }, [totalItems, pageSize]);
 
-  useEffect(() => {
-    setPage((current) => Math.min(current, totalPages));
-  }, [totalPages]);
-
-  const paginatedMissions = useMemo(() => {
-    if (!missions.length) {
-      return [];
-    }
-    const start = (page - 1) * pageSize;
-    return missions.slice(start, start + pageSize);
-  }, [missions, page, pageSize]);
-
-  const totalItems = missions.length;
-  const currentStart = totalItems ? (page - 1) * pageSize + 1 : 0;
-  const currentEnd = totalItems ? Math.min(page * pageSize, totalItems) : 0;
+  const currentStart = totalItems && missions.length ? (page - 1) * pageSize + 1 : 0;
+  const currentEnd =
+    totalItems && missions.length ? Math.min(currentStart + missions.length - 1, totalItems) : 0;
 
   const handlePageSizeChange = (event) => {
     setPageSize(Number(event.target.value));
@@ -160,16 +158,6 @@ const MissionListPage = () => {
   const goToNextPage = () => {
     setPage((current) => Math.min(totalPages, current + 1));
   };
-
-  const lastUpdated = useMemo(() => {
-    const latest = missions.reduce((acc, mission) => {
-      if (!mission.updatedAt) {
-        return acc;
-      }
-      return !acc || dayjs(mission.updatedAt).isAfter(acc) ? dayjs(mission.updatedAt) : acc;
-    }, null);
-    return latest ? latest.format('DD/MM/YYYY HH:mm') : null;
-  }, [missions]);
 
   return (
     <div className="page">
@@ -198,7 +186,7 @@ const MissionListPage = () => {
       ) : (
         <>
           <MissionTable
-            missions={paginatedMissions}
+            missions={missions}
             onView={handleViewMission}
             onEdit={handleEditMission}
             onDelete={handleDeleteMission}
