@@ -44,7 +44,7 @@ const MissionTable = ({ missions, onView, onEdit, onDelete, isManager, deletingI
               </td>
               <td>{mission.agentLogin || 'Non assigne'}</td>
               <td>
-                <div className="cell-main">{mission.sinistreType || 'Non renseigne'}</div>
+                <div className="cell-main">{mission.sinistreType || '-'}</div>
                 {mission.sinistreDate && <div className="cell-sub">{mission.sinistreDate}</div>}
               </td>
               <td className="table-actions">

@@ -7,11 +7,14 @@ import { listInsurers } from '../api/insurers';
 import { listAgencies } from '../api/insurerAgencies';
 import { listVehicleBrands } from '../api/vehicleBrands';
 import { listGarages } from '../api/garages';
-import { MISSION_STATUSES } from '../constants';
+import { addDamage, updateDamage, deleteDamage } from '../api/damages';
+import { saveLabors } from '../api/labors';
+import { MISSION_STATUSES, DAMAGE_PARTS, LABOR_CATEGORIES } from '../constants';
 
 const emptyForm = {
   assureurId: '',
   assureurAgenceId: '',
+  assureurAdverseId: '',
   vehiculeMarqueId: '',
   vehiculeMarque: '',
   assureNom: '',
@@ -24,6 +27,7 @@ const emptyForm = {
   sinistreCirconstances: '',
   sinistreDate: '',
   sinistrePolice: '',
+  sinistrePoliceAdverse: '',
   garageId: '',
   agentId: '',
   statut: 'cree',
@@ -33,6 +37,40 @@ const ASSIGNABLE_ROLES = ['GESTIONNAIRE', 'AGENT'];
 const ROLE_LABELS = {
   GESTIONNAIRE: 'Gestionnaire',
   AGENT: 'Agent',
+};
+
+const buildLaborEntries = (entries = []) => {
+  const existingMap = new Map(entries.map((entry) => [entry.category, entry]));
+  return LABOR_CATEGORIES.map((category) => {
+    const source = existingMap.get(category.id);
+    return {
+      category: category.id,
+      label: category.label,
+      hours: source ? Number(source.hours) || 0 : 0,
+      rate: source ? Number(source.rate) || 0 : 0,
+    };
+  });
+};
+
+const computeLaborTotals = (entries, suppliesHt) => {
+  const supplies = Number(suppliesHt) || 0;
+  const totalHours = entries.reduce((sum, entry) => sum + entry.hours, 0);
+  const totalHt = entries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
+  const totalTva = totalHt * 0.2;
+  const totalTtc = totalHt + totalTva;
+  const suppliesTva = supplies * 0.2;
+  const suppliesTtc = supplies + suppliesTva;
+  return {
+    totalHours,
+    totalHt,
+    totalTva,
+    totalTtc,
+    suppliesHt: supplies,
+    suppliesTva,
+    suppliesTtc,
+    grandTotalHt: totalHt + supplies,
+    grandTotalTtc: totalTtc + suppliesTtc,
+  };
 };
 
 const formatCirculationInputValue = (value) => {
@@ -56,6 +94,13 @@ const formatCirculationInputValue = (value) => {
   return '';
 };
 
+const DEFAULT_DAMAGE_TOTALS = {
+  totalHt: 0,
+  totalTtc: 0,
+  totalAfter: 0,
+  totalAfterTtc: 0,
+};
+
 const MissionFormPage = ({ mode }) => {
   const isEdit = mode === 'edit';
   const { token, isManager } = useAuth();
@@ -72,6 +117,21 @@ const MissionFormPage = ({ mode }) => {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [damages, setDamages] = useState([]);
+  const [damageTotals, setDamageTotals] = useState(DEFAULT_DAMAGE_TOTALS);
+  const [damageForm, setDamageForm] = useState({
+    id: null,
+    piece: '',
+    priceHt: '',
+    vetuste: 0,
+  });
+  const [damageError, setDamageError] = useState('');
+  const [damageSubmitting, setDamageSubmitting] = useState(false);
+  const [labors, setLabors] = useState(buildLaborEntries());
+  const [laborSupplies, setLaborSupplies] = useState(0);
+  const laborTotals = useMemo(() => computeLaborTotals(labors, laborSupplies), [labors, laborSupplies]);
+  const [laborError, setLaborError] = useState('');
+  const [laborSaving, setLaborSaving] = useState(false);
 
   const hasInsurers = insurers.length > 0;
   const hasBrands = brands.length > 0;
@@ -153,6 +213,7 @@ const MissionFormPage = ({ mode }) => {
         setForm({
           assureurId: mission.assureurId ? String(mission.assureurId) : '',
           assureurAgenceId: mission.assureurAgenceId ? String(mission.assureurAgenceId) : '',
+          assureurAdverseId: mission.assureurAdverseId ? String(mission.assureurAdverseId) : '',
           vehiculeMarqueId: mission.vehiculeMarqueId ? String(mission.vehiculeMarqueId) : '',
           vehiculeMarque: mission.vehiculeMarque || '',
           assureNom: mission.assureNom || '',
@@ -165,10 +226,15 @@ const MissionFormPage = ({ mode }) => {
           sinistreCirconstances: mission.sinistreCirconstances || '',
           sinistreDate: mission.sinistreDate || '',
           sinistrePolice: mission.sinistrePolice || '',
+          sinistrePoliceAdverse: mission.sinistrePoliceAdverse || '',
           garageId: mission.garageId ? String(mission.garageId) : '',
           agentId: mission.agentId ? String(mission.agentId) : '',
           statut: mission.statut,
         });
+        setDamages(data.damages || []);
+        setDamageTotals(data.damageTotals || DEFAULT_DAMAGE_TOTALS);
+        setLabors(buildLaborEntries(data.labors || []));
+        setLaborSupplies(data.laborTotals?.suppliesHt || 0);
         setLegacyGarage(
           mission.garageId
             ? null
@@ -210,6 +276,23 @@ const MissionFormPage = ({ mode }) => {
       const exists = insurers.some((insurer) => String(insurer.id) === String(prev.assureurId));
       if (!exists) {
         return { ...prev, assureurId: '' };
+      }
+      return prev;
+    });
+  }, [insurers]);
+
+  useEffect(() => {
+    if (!insurers.length) {
+      setForm((prev) => ({ ...prev, assureurAdverseId: '' }));
+      return;
+    }
+    setForm((prev) => {
+      if (!prev.assureurAdverseId) {
+        return prev;
+      }
+      const exists = insurers.some((insurer) => String(insurer.id) === String(prev.assureurAdverseId));
+      if (!exists) {
+        return { ...prev, assureurAdverseId: '' };
       }
       return prev;
     });
@@ -326,6 +409,138 @@ const MissionFormPage = ({ mode }) => {
     }));
   };
 
+  const resetDamageForm = () => {
+    setDamageForm({
+      id: null,
+      piece: '',
+      priceHt: '',
+      vetuste: 0,
+    });
+  };
+
+  const handleDamageChange = (event) => {
+    const { name, value } = event.target;
+    setDamageForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDamageSubmit = async () => {
+    if (!isEdit) {
+      return;
+    }
+    setDamageError('');
+    if (!damageForm.piece.trim()) {
+      setDamageError('Veuillez saisir le nom de la piece');
+      return;
+    }
+    const priceValue = Number(damageForm.priceHt);
+    if (Number.isNaN(priceValue) || priceValue < 0) {
+      setDamageError('Tarif hors taxe invalide');
+      return;
+    }
+    const vetusteValue = Number(damageForm.vetuste);
+    if (Number.isNaN(vetusteValue) || vetusteValue < 0 || vetusteValue > 100) {
+      setDamageError('Vetuste doit etre comprise entre 0 et 100');
+      return;
+    }
+
+    setDamageSubmitting(true);
+    try {
+      const payload = {
+        piece: damageForm.piece.trim(),
+        priceHt: priceValue,
+        vetuste: vetusteValue,
+      };
+      const response = damageForm.id
+        ? await updateDamage(token, id, damageForm.id, payload)
+        : await addDamage(token, id, payload);
+      setDamages(response.items || []);
+      setDamageTotals(response.totals || DEFAULT_DAMAGE_TOTALS);
+      resetDamageForm();
+    } catch (err) {
+      setDamageError(err.message || 'Enregistrement impossible');
+    } finally {
+      setDamageSubmitting(false);
+    }
+  };
+
+  const handleEditDamage = (damage) => {
+    setDamageError('');
+    setDamageForm({
+      id: damage.id,
+      piece: damage.piece,
+      priceHt: damage.priceHt.toString(),
+      vetuste: damage.vetuste.toString(),
+    });
+  };
+
+  const handleCancelDamageEdit = () => {
+    resetDamageForm();
+    setDamageError('');
+  };
+
+  const handleDeleteDamageItem = async (damage) => {
+    if (!window.confirm('Supprimer cette piece ?')) {
+      return;
+    }
+    setDamageError('');
+    setDamageSubmitting(true);
+    try {
+      const response = await deleteDamage(token, id, damage.id);
+      setDamages(response.items || []);
+      setDamageTotals(response.totals || DEFAULT_DAMAGE_TOTALS);
+      if (damageForm.id === damage.id) {
+        resetDamageForm();
+      }
+    } catch (err) {
+      setDamageError(err.message || 'Suppression impossible');
+    } finally {
+      setDamageSubmitting(false);
+    }
+  };
+
+  const handleLaborRowChange = (category, field, value) => {
+    const numValue = Number(value);
+    setLabors((prev) =>
+      prev.map((entry) =>
+        entry.category === category
+          ? {
+              ...entry,
+              [field]: Number.isNaN(numValue) ? 0 : numValue,
+            }
+          : entry
+      )
+    );
+  };
+
+  const handleLaborSuppliesChange = (event) => {
+    setLaborSupplies(Number(event.target.value) || 0);
+  };
+
+  const handleLaborSave = async () => {
+    if (!isEdit) {
+      return;
+    }
+    setLaborError('');
+    setLaborSaving(true);
+    try {
+      const payload = {
+        entries: labors.map((entry) => ({
+          category: entry.category,
+          hours: entry.hours,
+          rate: entry.rate,
+        })),
+        suppliesHt: laborSupplies,
+      };
+      const response = await saveLabors(token, id, payload);
+      setLabors(buildLaborEntries(response.entries || []));
+      setLaborSupplies(response.totals?.suppliesHt || 0);
+    } catch (err) {
+      setLaborError(err.message || 'Enregistrement impossible');
+    } finally {
+      setLaborSaving(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!hasInsurers) {
@@ -346,6 +561,8 @@ const MissionFormPage = ({ mode }) => {
       garageId: form.garageId ? Number(form.garageId) : null,
       vehiculeAnnee: form.vehiculeAnnee || null,
       agentId: form.agentId ? Number(form.agentId) : null,
+      assureurAdverseId: form.assureurAdverseId ? Number(form.assureurAdverseId) : null,
+      sinistrePoliceAdverse: form.sinistrePoliceAdverse || null,
     };
 
     try {
@@ -385,7 +602,7 @@ const MissionFormPage = ({ mode }) => {
         <h1>{isEdit ? `Modifier la mission #${id}` : 'Nouvelle mission'}</h1>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
-      <form className="card form-grid" onSubmit={handleSubmit}>
+      <form className="card form-grid" noValidate onSubmit={handleSubmit}>
         <fieldset>
           <legend>Assureur</legend>
           {!referenceLoading && !hasInsurers && (
@@ -412,7 +629,7 @@ const MissionFormPage = ({ mode }) => {
           </label>
           {selectedInsurer && (
             <div className="muted">
-              Contact : {selectedInsurer.contact || 'Non renseigne'}
+              Contact : {selectedInsurer.contact || '-'}
             </div>
           )}
           <label className="form-field">
@@ -437,11 +654,233 @@ const MissionFormPage = ({ mode }) => {
           </label>
           {selectedAgency && (
             <div className="muted">
-              <div>Adresse agence : {selectedAgency.adresse || 'Non renseignee'}</div>
-              <div>Telephone agence : {selectedAgency.telephone || 'Non renseigne'}</div>
+              <div>Adresse agence : {selectedAgency.adresse || '-'}</div>
+              <div>Telephone agence : {selectedAgency.telephone || '-'}</div>
             </div>
           )}
         </fieldset>
+
+        {isEdit && (
+          <fieldset>
+            <legend>Description des dommages</legend>
+            {damageError && <div className="alert alert-error">{damageError}</div>}
+            <div className="damage-form">
+              <div className="damage-form-fields">
+                <label className="form-field">
+                  <span>Piece</span>
+                  <input
+                    name="piece"
+                    list="damage-parts"
+                    value={damageForm.piece}
+                    onChange={handleDamageChange}
+                    placeholder="Selectionner ou saisir une piece"
+                  />
+                  <datalist id="damage-parts">
+                    {DAMAGE_PARTS.map((part) => (
+                      <option key={part} value={part} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="form-field">
+                  <span>Tarif HT (MAD)</span>
+                  <input
+                    name="priceHt"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={damageForm.priceHt}
+                    onChange={handleDamageChange}
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Vetuste (%)</span>
+                  <input
+                    name="vetuste"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={damageForm.vetuste}
+                    onChange={handleDamageChange}
+                  />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleDamageSubmit}
+                  disabled={damageSubmitting}
+                >
+                  {damageForm.id ? 'Mettre a jour' : 'Ajouter'}
+                </button>
+                {damageForm.id && (
+                  <button type="button" className="btn btn-secondary" onClick={handleCancelDamageEdit}>
+                    Annuler
+                  </button>
+                )}
+              </div>
+            </div>
+            {damages.length ? (
+              <>
+                <div className="table-wrapper damage-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Piece</th>
+                        <th>Prix HT</th>
+                        <th>Vetuste</th>
+                        <th>Apres vetuste</th>
+                        <th>Prix TTC</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {damages.map((damage) => {
+                        const priceTtc = damage.priceHt * 1.2;
+                        return (
+                          <tr key={damage.id}>
+                            <td>{damage.piece}</td>
+                            <td>{damage.priceHt.toFixed(2)} MAD</td>
+                            <td>{damage.vetuste.toFixed(0)}%</td>
+                            <td>{damage.priceAfter.toFixed(2)} MAD</td>
+                            <td>{priceTtc.toFixed(2)} MAD</td>
+                            <td className="table-actions">
+                              <button
+                                type="button"
+                                className="btn btn-action"
+                                onClick={() => handleEditDamage(damage)}
+                                disabled={damageSubmitting}
+                              >
+                                Modifier
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-action text-danger"
+                                onClick={() => handleDeleteDamageItem(damage)}
+                                disabled={damageSubmitting}
+                              >
+                                Supprimer
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="damage-totals">
+                  <div>
+                    <strong>Total HT :</strong> {damageTotals.totalHt.toFixed(2)} MAD
+                  </div>
+                  <div>
+                    <strong>Total TTC :</strong> {damageTotals.totalTtc.toFixed(2)} MAD
+                  </div>
+                  <div>
+                    <strong>Apres vetuste HT :</strong> {damageTotals.totalAfter.toFixed(2)} MAD
+                  </div>
+                  <div>
+                    <strong>Apres vetuste TTC :</strong> {damageTotals.totalAfterTtc.toFixed(2)} MAD
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="muted">Aucune piece enregistree pour cette mission.</p>
+            )}
+          </fieldset>
+        )}
+
+        {isEdit && (
+          <fieldset>
+            <legend>Évaluation de la remise en état</legend>
+            {laborError && <div className="alert alert-error">{laborError}</div>}
+            <div className="table-wrapper damage-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Main d’oeuvre</th>
+                    <th>Nombre d’heures</th>
+                    <th>Taux horaire</th>
+                    <th>Hors taxe</th>
+                    <th>T.V.A</th>
+                    <th>Total TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {labors.map((labor) => {
+                    const ht = labor.hours * labor.rate;
+                    const tva = ht * 0.2;
+                    const ttc = ht + tva;
+                    return (
+                      <tr key={labor.category}>
+                        <td>{labor.label}</td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={labor.hours}
+                            onChange={(event) => handleLaborRowChange(labor.category, 'hours', event.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="10"
+                            value={labor.rate}
+                            onChange={(event) => handleLaborRowChange(labor.category, 'rate', event.target.value)}
+                          />
+                        </td>
+                        <td>{ht.toFixed(2)} MAD</td>
+                        <td>{tva.toFixed(2)} MAD</td>
+                        <td>{ttc.toFixed(2)} MAD</td>
+                      </tr>
+                    );
+                  })}
+                  <tr>
+                    <td>Fournitures</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        step="10"
+                        value={laborSupplies}
+                        onChange={handleLaborSuppliesChange}
+                      />
+                    </td>
+                    <td>{(laborSupplies * 0.2).toFixed(2)} MAD</td>
+                    <td>{(laborSupplies * 1.2).toFixed(2)} MAD</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
+                Enregistrer la main d’oeuvre
+              </button>
+            </div>
+            <div className="damage-totals">
+              <div>
+                <strong>Total main d’oeuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Total main d’oeuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Fournitures TTC :</strong> {laborTotals.suppliesTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
+              </div>
+            </div>
+          </fieldset>
+        )}
 
         <fieldset>
           <legend>Vehicule</legend>
@@ -517,6 +956,30 @@ const MissionFormPage = ({ mode }) => {
             <input name="sinistrePolice" value={form.sinistrePolice} onChange={handleChange} />
           </label>
           <label className="form-field">
+            <span>Police vehicule adverse</span>
+            <input
+              name="sinistrePoliceAdverse"
+              value={form.sinistrePoliceAdverse}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Compagnie adverse</span>
+            <select
+              name="assureurAdverseId"
+              value={form.assureurAdverseId}
+              onChange={handleChange}
+              disabled={!insurers.length}
+            >
+            <option value="">-</option>
+              {insurers.map((insurer) => (
+                <option key={insurer.id} value={insurer.id}>
+                  {insurer.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
             <span>Circonstances</span>
             <textarea
               name="sinistreCirconstances"
@@ -570,10 +1033,10 @@ const MissionFormPage = ({ mode }) => {
           {(form.garageId ? selectedGarage : legacyGarage) && (
             <div className="muted">
               <div>
-                Adresse : {(form.garageId ? selectedGarage : legacyGarage).adresse || 'Non renseignee'}
+                Adresse : {(form.garageId ? selectedGarage : legacyGarage).adresse || '-'}
               </div>
               <div>
-                Contact : {(form.garageId ? selectedGarage : legacyGarage).contact || 'Non renseigne'}
+                Contact : {(form.garageId ? selectedGarage : legacyGarage).contact || '-'}
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../api/http';
 import {
   getMission,
   updateMissionStatus,
@@ -33,6 +34,24 @@ const formatCirculationDate = (value) => {
   return parsed.isValid() ? parsed.format('DD/MM/YYYY') : trimmed;
 };
 
+const DEFAULT_DAMAGE_TOTALS = {
+  totalHt: 0,
+  totalTtc: 0,
+  totalAfter: 0,
+  totalAfterTtc: 0,
+};
+
+const DEFAULT_LABOR_TOTALS = {
+  totalHours: 0,
+  totalHt: 0,
+  totalTva: 0,
+  totalTtc: 0,
+  suppliesHt: 0,
+  suppliesTtc: 0,
+  grandTotalHt: 0,
+  grandTotalTtc: 0,
+};
+
 const MissionDetailPage = () => {
   const { token, isManager, isAgent, user } = useAuth();
   const navigate = useNavigate();
@@ -54,6 +73,11 @@ const MissionDetailPage = () => {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [documentUploading, setDocumentUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [damages, setDamages] = useState([]);
+  const [damageTotals, setDamageTotals] = useState(DEFAULT_DAMAGE_TOTALS);
+  const [labors, setLabors] = useState([]);
+  const [laborTotals, setLaborTotals] = useState(DEFAULT_LABOR_TOTALS);
 
   const filteredLabels = useMemo(() => {
     const query = labelSearch.trim().toLowerCase();
@@ -78,6 +102,10 @@ const MissionDetailPage = () => {
       setMission(data.mission);
       setPhotos(data.photos || []);
       setDocuments(data.documents || []);
+      setDamages(data.damages || []);
+      setDamageTotals(data.damageTotals || DEFAULT_DAMAGE_TOTALS);
+      setLabors(data.labors || []);
+      setLaborTotals(data.laborTotals || DEFAULT_LABOR_TOTALS);
       if (Array.isArray(data.photoLabels) && data.photoLabels.length) {
         setAvailableLabels(data.photoLabels);
       }
@@ -217,6 +245,37 @@ const MissionDetailPage = () => {
     }
   };
 
+  const handleExportReport = async () => {
+    if (!id) {
+      return;
+    }
+    setError('');
+    setExporting(true);
+    try {
+      const response = await fetch(`${API_URL}/missions/${id}/report`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Export impossible');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `rapport-mission-${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setError(err.message || 'Export impossible');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const canSubmitUpload = filteredLabels.length > 0 && !uploading;
 
   const photosAvant = useMemo(
@@ -262,7 +321,7 @@ const MissionDetailPage = () => {
   const infoItem = (label, value) => (
     <div className="info-item">
       <span className="info-label">{label}</span>
-      <span className="info-value">{value || 'Non renseigne'}</span>
+      <span className="info-value">{value || '-'}</span>
     </div>
   );
 
@@ -280,6 +339,14 @@ const MissionDetailPage = () => {
         </div>
         <div className="status-panel">
           <StatusBadge statut={mission.statut} />
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleExportReport}
+            disabled={exporting}
+          >
+            {exporting ? 'Export...' : 'Exporter le rapport'}
+          </button>
           {isManager && (
             <button type="button" className="btn btn-primary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
               Modifier
@@ -321,9 +388,123 @@ const MissionDetailPage = () => {
         <div className="info-grid">
           {infoItem('Code sinistre', mission.sinistreType)}
           {infoItem('Police', mission.sinistrePolice)}
+          {infoItem('Police vehicule adversaire', mission.sinistrePoliceAdverse)}
+          {infoItem('Compagnie adverse', mission.assureurAdverseNom)}
           {infoItem('Circonstances', mission.sinistreCirconstances)}
           {infoItem('Date', mission.sinistreDate ? dayjs(mission.sinistreDate).format('DD/MM/YYYY') : null)}
         </div>
+      </section>
+
+      <section className="card">
+        <h2>Description des dommages</h2>
+        {damages.length ? (
+          <>
+            <div className="table-wrapper damage-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Piece</th>
+                    <th>Prix HT</th>
+                    <th>Vetuste</th>
+                    <th>Apres vetuste</th>
+                    <th>Prix TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {damages.map((damage) => {
+                    const priceTtc = damage.priceHt * 1.2;
+                    return (
+                      <tr key={damage.id}>
+                        <td>{damage.piece}</td>
+                        <td>{damage.priceHt.toFixed(2)} MAD</td>
+                        <td>{damage.vetuste.toFixed(0)}%</td>
+                        <td>{damage.priceAfter.toFixed(2)} MAD</td>
+                        <td>{priceTtc.toFixed(2)} MAD</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="damage-totals">
+              <div>
+                <strong>Total HT :</strong> {damageTotals.totalHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Total TTC :</strong> {damageTotals.totalTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Apres vetuste HT :</strong> {damageTotals.totalAfter.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Apres vetuste TTC :</strong> {damageTotals.totalAfterTtc.toFixed(2)} MAD
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="muted">Aucun dommage enregistre pour cette mission.</p>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Évaluation de la remise en état</h2>
+        {labors.length ? (
+          <>
+            <div className="table-wrapper damage-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Main d’oeuvre</th>
+                    <th>Nombre d’heures</th>
+                    <th>Taux horaire</th>
+                    <th>Hors taxe</th>
+                    <th>T.V.A</th>
+                    <th>Total TTC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {labors.map((labor) => (
+                    <tr key={labor.category}>
+                      <td>{labor.label}</td>
+                      <td>{labor.hours.toFixed(2)}</td>
+                      <td>{labor.rate.toFixed(2)} MAD</td>
+                      <td>{labor.horsTaxe.toFixed(2)} MAD</td>
+                      <td>{labor.tva.toFixed(2)} MAD</td>
+                      <td>{labor.ttc.toFixed(2)} MAD</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>Fournitures</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>{laborTotals.suppliesHt.toFixed(2)} MAD</td>
+                    <td>{(laborTotals.suppliesTva ?? laborTotals.suppliesHt * 0.2).toFixed(2)} MAD</td>
+                    <td>{(laborTotals.suppliesTtc ?? laborTotals.suppliesHt * 1.2).toFixed(2)} MAD</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="damage-totals">
+              <div>
+                <strong>Total main d’oeuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Total main d’oeuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Fournitures TTC :</strong> {laborTotals.suppliesTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="muted">Pas d’information de main d’oeuvre disponible.</p>
+        )}
       </section>
 
       <section className="card">

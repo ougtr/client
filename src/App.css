@@ -825,6 +825,56 @@ legend {
   color: #1d4ed8;
 }
 
+.damage-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.damage-form-fields .form-field {
+  flex: 1;
+  min-width: 220px;
+}
+
+.labor-row {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+.labor-row .form-field {
+  flex: 1;
+  min-width: 180px;
+}
+
+.damage-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.damage-table th,
+.damage-table td {
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.damage-totals {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.5rem;
+  background: #f8fafc;
+  border-radius: 0.8rem;
+  padding: 0.75rem 1rem;
+}
+
+.damage-totals div {
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
 @media (max-width: 640px) {
   .photo-card {
   width: 100%;
