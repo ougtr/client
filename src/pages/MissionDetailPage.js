@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../context/AuthContext';
@@ -14,7 +14,7 @@ import {
 import PhotoGallery from '../components/PhotoGallery';
 import DocumentList from '../components/DocumentList';
 import StatusBadge from '../components/StatusBadge';
-import { MISSION_STATUSES, PHOTO_LABELS } from '../constants';
+import { MISSION_STATUSES, PHOTO_LABELS, DAMAGE_TYPE_OPTIONS } from '../constants';
 
 const formatStatusLabel = (status) => status.replace(/_/g, ' ');
 
@@ -32,6 +32,114 @@ const formatCirculationDate = (value) => {
   }
   const parsed = dayjs(trimmed);
   return parsed.isValid() ? parsed.format('DD/MM/YYYY') : trimmed;
+};
+
+const ENERGY_LABELS = {
+  diesel: 'Diesel',
+  essence: 'Essence',
+  electrique: 'Electrique',
+  hybride: 'Hybride',
+};
+
+const REFORME_LABELS = {
+  economique: 'Economique',
+  technique: 'Technique',
+};
+
+const DAMAGE_TYPE_LABELS = DAMAGE_TYPE_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
+
+const formatKilometrage = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numberValue = Number(value);
+  const displayValue = Number.isFinite(numberValue)
+    ? numberValue.toLocaleString('fr-FR')
+    : value;
+  return `${displayValue} km`;
+};
+
+const formatEnergyLabel = (value) => {
+  if (!value) {
+    return null;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return ENERGY_LABELS[normalized] || value;
+};
+
+const GUARANTEE_LABELS = {
+  'dommage collision': 'Dommage collision',
+  tierce: 'Tierce',
+  rc: 'RC',
+};
+
+const guaranteeRequiresFranchise = (value) => {
+  if (!value) {
+    return false;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'dommage collision' || normalized === 'tierce';
+};
+
+const formatGuaranteeType = (value) => {
+  if (!value) {
+    return '-';
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return GUARANTEE_LABELS[normalized] || value;
+};
+
+const formatFranchiseRate = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  const num = Number(value);
+  const display = Number.isFinite(num) ? num.toFixed(2).replace(/\.00$/, '') : value;
+  return `${display} %`;
+};
+
+const formatFranchiseAmount = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  const num = Number(value);
+  const display = Number.isFinite(num) ? num.toFixed(2) : value;
+  return `${display} MAD`;
+};
+
+const formatResponsabilite = (value) => {
+  if (!value) {
+    return '-';
+  }
+  return value;
+};
+
+const formatCurrencyValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  const num = Number(value);
+  const display = Number.isFinite(num) ? `${num.toFixed(2)} MAD` : `${value} MAD`;
+  return display;
+};
+
+const formatReforme = (value) => {
+  if (!value) {
+    return '-';
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return REFORME_LABELS[normalized] || value;
+};
+
+const formatDamageTypeLabel = (value) => {
+  if (!value) {
+    return '-';
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return DAMAGE_TYPE_LABELS[normalized] || value;
 };
 
 const DEFAULT_DAMAGE_TOTALS = {
@@ -78,6 +186,26 @@ const MissionDetailPage = () => {
   const [damageTotals, setDamageTotals] = useState(DEFAULT_DAMAGE_TOTALS);
   const [labors, setLabors] = useState([]);
   const [laborTotals, setLaborTotals] = useState(DEFAULT_LABOR_TOTALS);
+
+  const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
+  const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
+  const { missionFranchiseAmount, missionRecommendedIndemnisation } = useMemo(() => {
+    if (!mission) {
+      return { missionFranchiseAmount: 0, missionRecommendedIndemnisation: 0 };
+    }
+    const rate = Number(mission.garantieFranchiseTaux) || 0;
+    const fixed = Number(mission.garantieFranchiseMontant) || 0;
+    const percentValue = (rate / 100) * totalEvaluationTtc;
+    const franchise = Math.max(percentValue, fixed);
+    return {
+      missionFranchiseAmount: franchise,
+      missionRecommendedIndemnisation: Math.max(0, totalEvaluationTtc - franchise),
+    };
+  }, [mission, totalEvaluationTtc]);
+  const displayedIndemnisation =
+    mission && mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
+      ? Number(mission.indemnisationFinale)
+      : missionRecommendedIndemnisation;
 
   const filteredLabels = useMemo(() => {
     const query = labelSearch.trim().toLowerCase();
@@ -336,6 +464,7 @@ const MissionDetailPage = () => {
           <p className="muted">
             Derniere mise a jour {mission.updatedAt ? dayjs(mission.updatedAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
           </p>
+          <p className="muted">NÂ° immatriculation : {mission.vehiculeImmatriculation || '-'}</p>
         </div>
         <div className="status-panel">
           <StatusBadge statut={mission.statut} />
@@ -380,6 +509,10 @@ const MissionDetailPage = () => {
             'Date de mise en circulation',
             mission.vehiculeAnnee ? formatCirculationDate(mission.vehiculeAnnee) : null
           )}
+          {infoItem('Numero de chassis (VIN)', mission.vehiculeVin)}
+          {infoItem('Kilometrage', formatKilometrage(mission.vehiculeKilometrage))}
+          {infoItem('Puissance fiscale', mission.vehiculePuissanceFiscale)}
+          {infoItem('Energie', formatEnergyLabel(mission.vehiculeEnergie))}
         </div>
       </section>
 
@@ -390,6 +523,8 @@ const MissionDetailPage = () => {
           {infoItem('Police', mission.sinistrePolice)}
           {infoItem('Police vehicule adversaire', mission.sinistrePoliceAdverse)}
           {infoItem('Compagnie adverse', mission.assureurAdverseNom)}
+          {infoItem('Nom & prenom adverse', mission.sinistreNomAdverse)}
+          {infoItem('Immatriculation adverse', mission.sinistreImmatriculationAdverse)}
           {infoItem('Circonstances', mission.sinistreCirconstances)}
           {infoItem('Date', mission.sinistreDate ? dayjs(mission.sinistreDate).format('DD/MM/YYYY') : null)}
         </div>
@@ -404,21 +539,27 @@ const MissionDetailPage = () => {
                 <thead>
                   <tr>
                     <th>Piece</th>
+                    <th>Type</th>
                     <th>Prix HT</th>
                     <th>Vetuste</th>
                     <th>Apres vetuste</th>
+                    <th>TVA</th>
                     <th>Prix TTC</th>
                   </tr>
                 </thead>
                 <tbody>
                   {damages.map((damage) => {
-                    const priceTtc = damage.priceHt * 1.2;
+                    const withVat = damage.withVat !== false;
+                    const priceTtc =
+                      damage.priceTtc !== undefined ? damage.priceTtc : damage.priceHt * (withVat ? 1.2 : 1);
                     return (
                       <tr key={damage.id}>
                         <td>{damage.piece}</td>
+                        <td>{formatDamageTypeLabel(damage.pieceType)}</td>
                         <td>{damage.priceHt.toFixed(2)} MAD</td>
                         <td>{damage.vetuste.toFixed(0)}%</td>
                         <td>{damage.priceAfter.toFixed(2)} MAD</td>
+                        <td>{withVat ? 'Oui' : 'Non'}</td>
                         <td>{priceTtc.toFixed(2)} MAD</td>
                       </tr>
                     );
@@ -447,6 +588,15 @@ const MissionDetailPage = () => {
       </section>
 
       <section className="card">
+        <h2>Synthese</h2>
+        {mission?.synthese ? (
+          <p>{mission.synthese}</p>
+        ) : (
+          <p className="muted">Aucune synthese saisie pour cette mission.</p>
+        )}
+      </section>
+
+      <section className="card">
         <h2>Évaluation de la remise en état</h2>
         {labors.length ? (
           <>
@@ -454,8 +604,8 @@ const MissionDetailPage = () => {
               <table>
                 <thead>
                   <tr>
-                    <th>Main d’oeuvre</th>
-                    <th>Nombre d’heures</th>
+                    <th>Main d'œuvre</th>
+                    <th>Nombre d'heures</th>
                     <th>Taux horaire</th>
                     <th>Hors taxe</th>
                     <th>T.V.A</th>
@@ -475,8 +625,8 @@ const MissionDetailPage = () => {
                   ))}
                   <tr>
                     <td>Fournitures</td>
-                    <td>—</td>
-                    <td>—</td>
+                    <td>-</td>
+                    <td>-</td>
                     <td>{laborTotals.suppliesHt.toFixed(2)} MAD</td>
                     <td>{(laborTotals.suppliesTva ?? laborTotals.suppliesHt * 0.2).toFixed(2)} MAD</td>
                     <td>{(laborTotals.suppliesTtc ?? laborTotals.suppliesHt * 1.2).toFixed(2)} MAD</td>
@@ -486,10 +636,10 @@ const MissionDetailPage = () => {
             </div>
             <div className="damage-totals">
               <div>
-                <strong>Total main d’oeuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+                <strong>Total main d'œuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Total main d’oeuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+                <strong>Total main d'œuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
@@ -500,10 +650,46 @@ const MissionDetailPage = () => {
               <div>
                 <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
               </div>
+              <div>
+                <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Montant final indemnisation :</strong>{' '}
+                {mission ? `${displayedIndemnisation.toFixed(2)} MAD` : '-'}
+              </div>
+            </div>
+            <div className="info-inline-list">
+              <div className="info-inline-item">
+                <span className="info-inline-label">Type de garantie :</span>
+                <span className="info-inline-value">{formatGuaranteeType(mission.garantieType)}</span>
+              </div>
+              {guaranteeRequiresFranchise(mission.garantieType) && (
+                <>
+                  <div className="info-inline-item">
+                    <span className="info-inline-label">Taux franchise :</span>
+                    <span className="info-inline-value">{formatFranchiseRate(mission.garantieFranchiseTaux)}</span>
+                  </div>
+                  <div className="info-inline-item">
+                    <span className="info-inline-label">Franchise (MAD) :</span>
+                    <span className="info-inline-value">
+                      {formatFranchiseAmount(mission.garantieFranchiseMontant)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="info-grid">
+              {infoItem('Responsabilite', formatResponsabilite(mission.responsabilite))}
+            </div>
+            <div className="info-grid">
+              {infoItem('Reforme', formatReforme(mission.reformeType))}
+              {infoItem('Valeur assuree', formatCurrencyValue(mission.valeurAssuree))}
+              {infoItem('Valeur venale', formatCurrencyValue(mission.valeurVenale))}
+              {infoItem('Valeur epaves', formatCurrencyValue(mission.valeurEpaves))}
             </div>
           </>
         ) : (
-          <p className="muted">Pas d’information de main d’oeuvre disponible.</p>
+          <p className="muted">Pas d'information de main d'œuvre disponible.</p>
         )}
       </section>
 
@@ -657,6 +843,7 @@ const MissionDetailPage = () => {
 };
 
 export default MissionDetailPage;
+
 
 
 

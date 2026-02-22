@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createMission, getMission, updateMission } from '../api/missions';
@@ -9,7 +9,7 @@ import { listVehicleBrands } from '../api/vehicleBrands';
 import { listGarages } from '../api/garages';
 import { addDamage, updateDamage, deleteDamage } from '../api/damages';
 import { saveLabors } from '../api/labors';
-import { MISSION_STATUSES, DAMAGE_PARTS, LABOR_CATEGORIES } from '../constants';
+import { MISSION_STATUSES, DAMAGE_PARTS, DAMAGE_TYPE_OPTIONS, LABOR_CATEGORIES } from '../constants';
 
 const emptyForm = {
   assureurId: '',
@@ -23,14 +23,30 @@ const emptyForm = {
   vehiculeModele: '',
   vehiculeImmatriculation: '',
   vehiculeAnnee: '',
+  vehiculeVin: '',
+  vehiculeKilometrage: '',
+  vehiculePuissanceFiscale: '',
+  vehiculeEnergie: '',
   sinistreType: '',
   sinistreCirconstances: '',
   sinistreDate: '',
   sinistrePolice: '',
   sinistrePoliceAdverse: '',
+  sinistreNomAdverse: '',
+  sinistreImmatriculationAdverse: '',
   garageId: '',
   agentId: '',
   statut: 'cree',
+  garantieType: '',
+  garantieFranchiseTaux: '',
+  garantieFranchiseMontant: '',
+  responsabilite: '',
+  reformeType: '',
+  valeurAssuree: '',
+  valeurVenale: '',
+  valeurEpaves: '',
+  indemnisationFinale: '',
+  synthese: '',
 };
 
 const ASSIGNABLE_ROLES = ['GESTIONNAIRE', 'AGENT'];
@@ -101,6 +117,51 @@ const DEFAULT_DAMAGE_TOTALS = {
   totalAfterTtc: 0,
 };
 
+const ENERGY_OPTIONS = [
+  { value: 'diesel', label: 'Diesel' },
+  { value: 'essence', label: 'Essence' },
+  { value: 'electrique', label: 'Electrique' },
+  { value: 'hybride', label: 'Hybride' },
+];
+
+const GUARANTEE_OPTIONS = [
+  { value: 'dommage collision', label: 'Dommage collision' },
+  { value: 'tierce', label: 'Tierce' },
+  { value: 'rc', label: 'RC' },
+];
+
+const RESPONSIBILITY_OPTIONS = [
+  { value: '0%', label: '0%' },
+  { value: '50%', label: '50%' },
+  { value: '100%', label: '100%' },
+];
+
+const guaranteeRequiresFranchise = (value) => {
+  if (!value) {
+    return false;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'dommage collision' || normalized === 'tierce';
+};
+
+const REFORME_OPTIONS = [
+  { value: 'economique', label: 'Economique' },
+  { value: 'technique', label: 'Technique' },
+];
+
+const DAMAGE_TYPE_LABELS = DAMAGE_TYPE_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
+
+const formatDamageTypeLabel = (value) => {
+  if (!value) {
+    return '-';
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return DAMAGE_TYPE_LABELS[normalized] || value;
+};
+
 const MissionFormPage = ({ mode }) => {
   const isEdit = mode === 'edit';
   const { token, isManager } = useAuth();
@@ -124,6 +185,8 @@ const MissionFormPage = ({ mode }) => {
     piece: '',
     priceHt: '',
     vetuste: 0,
+    pieceType: DAMAGE_TYPE_OPTIONS[0].value,
+    withVat: true,
   });
   const [damageError, setDamageError] = useState('');
   const [damageSubmitting, setDamageSubmitting] = useState(false);
@@ -222,11 +285,44 @@ const MissionFormPage = ({ mode }) => {
           vehiculeModele: mission.vehiculeModele || '',
           vehiculeImmatriculation: mission.vehiculeImmatriculation || '',
           vehiculeAnnee: formatCirculationInputValue(mission.vehiculeAnnee),
+          vehiculeVin: mission.vehiculeVin || '',
+          vehiculeKilometrage:
+            mission.vehiculeKilometrage !== null && mission.vehiculeKilometrage !== undefined
+              ? String(mission.vehiculeKilometrage)
+              : '',
+          vehiculePuissanceFiscale: mission.vehiculePuissanceFiscale || '',
+          vehiculeEnergie: mission.vehiculeEnergie || '',
           sinistreType: mission.sinistreType || '',
           sinistreCirconstances: mission.sinistreCirconstances || '',
           sinistreDate: mission.sinistreDate || '',
           sinistrePolice: mission.sinistrePolice || '',
           sinistrePoliceAdverse: mission.sinistrePoliceAdverse || '',
+          sinistreNomAdverse: mission.sinistreNomAdverse || '',
+          sinistreImmatriculationAdverse: mission.sinistreImmatriculationAdverse || '',
+          garantieType: mission.garantieType || '',
+          garantieFranchiseTaux:
+            mission.garantieFranchiseTaux !== null && mission.garantieFranchiseTaux !== undefined
+              ? String(mission.garantieFranchiseTaux)
+              : '',
+          garantieFranchiseMontant:
+            mission.garantieFranchiseMontant !== null && mission.garantieFranchiseMontant !== undefined
+              ? String(mission.garantieFranchiseMontant)
+              : '',
+          responsabilite: mission.responsabilite || '',
+          reformeType: mission.reformeType || '',
+          valeurAssuree:
+            mission.valeurAssuree !== null && mission.valeurAssuree !== undefined
+              ? String(mission.valeurAssuree)
+              : '',
+          valeurVenale:
+            mission.valeurVenale !== null && mission.valeurVenale !== undefined ? String(mission.valeurVenale) : '',
+          valeurEpaves:
+            mission.valeurEpaves !== null && mission.valeurEpaves !== undefined ? String(mission.valeurEpaves) : '',
+          indemnisationFinale:
+            mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
+              ? String(mission.indemnisationFinale)
+              : '',
+          synthese: mission.synthese || '',
           garageId: mission.garageId ? String(mission.garageId) : '',
           agentId: mission.agentId ? String(mission.agentId) : '',
           statut: mission.statut,
@@ -367,6 +463,39 @@ const MissionFormPage = ({ mode }) => {
   }, [brands, hasBrands, isEdit, form.vehiculeMarqueId]);
 
   const statusOptions = useMemo(() => MISSION_STATUSES, []);
+  const showFranchiseFields = guaranteeRequiresFranchise(form.garantieType);
+  const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
+  const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
+    const totalTtc = laborTotals.grandTotalTtc || 0;
+    const rate = Number(form.garantieFranchiseTaux) || 0;
+    const fixed = Number(form.garantieFranchiseMontant) || 0;
+    const percentValue = (rate / 100) * totalTtc;
+    const franchise = Math.max(percentValue, fixed);
+    return {
+      franchiseAmount: franchise,
+      recommendedIndemnisation: Math.max(0, totalTtc - franchise),
+    };
+  }, [laborTotals.grandTotalTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant]);
+
+  const handleIndemnisationRecalc = () => {
+    setForm((prev) => ({
+      ...prev,
+      indemnisationFinale: recommendedIndemnisation.toFixed(2),
+    }));
+  };
+
+  useEffect(() => {
+    if (
+      !isEdit &&
+      (form.indemnisationFinale === '' || form.indemnisationFinale === null) &&
+      laborTotals.grandTotalTtc
+    ) {
+      setForm((prev) => ({
+        ...prev,
+        indemnisationFinale: recommendedIndemnisation.toFixed(2),
+      }));
+    }
+  }, [laborTotals.grandTotalTtc, form.indemnisationFinale, isEdit, recommendedIndemnisation]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -409,19 +538,26 @@ const MissionFormPage = ({ mode }) => {
     }));
   };
 
-  const resetDamageForm = () => {
-    setDamageForm({
-      id: null,
-      piece: '',
-      priceHt: '',
-      vetuste: 0,
-    });
-  };
+const resetDamageForm = () => {
+  setDamageForm({
+    id: null,
+    piece: '',
+    priceHt: '',
+    vetuste: 0,
+    pieceType: DAMAGE_TYPE_OPTIONS[0].value,
+    withVat: true,
+  });
+};
 
-  const handleDamageChange = (event) => {
-    const { name, value } = event.target;
-    setDamageForm((prev) => ({ ...prev, [name]: value }));
-  };
+const handleDamageChange = (event) => {
+  const { name, value } = event.target;
+  setDamageForm((prev) => ({ ...prev, [name]: value }));
+};
+
+const handleDamageCheckboxChange = (event) => {
+  const { name, checked } = event.target;
+  setDamageForm((prev) => ({ ...prev, [name]: checked }));
+};
 
   const handleDamageSubmit = async () => {
     if (!isEdit) {
@@ -449,6 +585,8 @@ const MissionFormPage = ({ mode }) => {
         piece: damageForm.piece.trim(),
         priceHt: priceValue,
         vetuste: vetusteValue,
+        pieceType: damageForm.pieceType,
+        withVat: damageForm.withVat,
       };
       const response = damageForm.id
         ? await updateDamage(token, id, damageForm.id, payload)
@@ -470,6 +608,8 @@ const MissionFormPage = ({ mode }) => {
       piece: damage.piece,
       priceHt: damage.priceHt.toString(),
       vetuste: damage.vetuste.toString(),
+      pieceType: damage.pieceType || DAMAGE_TYPE_OPTIONS[0].value,
+      withVat: damage.withVat !== false,
     });
   };
 
@@ -564,6 +704,23 @@ const MissionFormPage = ({ mode }) => {
       assureurAdverseId: form.assureurAdverseId ? Number(form.assureurAdverseId) : null,
       sinistrePoliceAdverse: form.sinistrePoliceAdverse || null,
     };
+    const requiresFranchise = guaranteeRequiresFranchise(form.garantieType);
+    payload.garantieType = form.garantieType || null;
+    payload.garantieFranchiseTaux =
+      requiresFranchise && form.garantieFranchiseTaux !== ''
+        ? Number(form.garantieFranchiseTaux)
+        : null;
+    payload.garantieFranchiseMontant =
+      requiresFranchise && form.garantieFranchiseMontant !== ''
+        ? Number(form.garantieFranchiseMontant)
+        : null;
+    payload.responsabilite = form.responsabilite || null;
+    payload.synthese = form.synthese || null;
+    payload.indemnisationFinale = form.indemnisationFinale !== '' ? Number(form.indemnisationFinale) : null;
+    payload.reformeType = form.reformeType || null;
+    payload.valeurAssuree = form.valeurAssuree !== '' ? Number(form.valeurAssuree) : null;
+    payload.valeurVenale = form.valeurVenale !== '' ? Number(form.valeurVenale) : null;
+    payload.valeurEpaves = form.valeurEpaves !== '' ? Number(form.valeurEpaves) : null;
 
     try {
       const response = isEdit
@@ -704,6 +861,28 @@ const MissionFormPage = ({ mode }) => {
                     onChange={handleDamageChange}
                   />
                 </label>
+                <label className="form-field">
+                  <span>Type de piece</span>
+                  <select name="pieceType" value={damageForm.pieceType} onChange={handleDamageChange}>
+                    {DAMAGE_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="form-field checkbox-field">
+                  <span>Avec TVA</span>
+                  <div className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      name="withVat"
+                      checked={damageForm.withVat}
+                      onChange={handleDamageCheckboxChange}
+                    />
+                    <span className="muted">Appliquer la TVA sur cette piece</span>
+                  </div>
+                </label>
               </div>
               <div className="form-actions">
                 <button
@@ -728,22 +907,28 @@ const MissionFormPage = ({ mode }) => {
                     <thead>
                       <tr>
                         <th>Piece</th>
+                        <th>Type</th>
                         <th>Prix HT</th>
                         <th>Vetuste</th>
                         <th>Apres vetuste</th>
+                        <th>TVA</th>
                         <th>Prix TTC</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
                       {damages.map((damage) => {
-                        const priceTtc = damage.priceHt * 1.2;
+                        const withVat = damage.withVat !== false;
+                        const priceTtc =
+                          damage.priceTtc !== undefined ? damage.priceTtc : damage.priceHt * (withVat ? 1.2 : 1);
                         return (
                           <tr key={damage.id}>
                             <td>{damage.piece}</td>
+                            <td>{formatDamageTypeLabel(damage.pieceType)}</td>
                             <td>{damage.priceHt.toFixed(2)} MAD</td>
                             <td>{damage.vetuste.toFixed(0)}%</td>
                             <td>{damage.priceAfter.toFixed(2)} MAD</td>
+                            <td>{withVat ? 'Oui' : 'Non'}</td>
                             <td>{priceTtc.toFixed(2)} MAD</td>
                             <td className="table-actions">
                               <button
@@ -769,20 +954,20 @@ const MissionFormPage = ({ mode }) => {
                     </tbody>
                   </table>
                 </div>
-                <div className="damage-totals">
-                  <div>
-                    <strong>Total HT :</strong> {damageTotals.totalHt.toFixed(2)} MAD
-                  </div>
-                  <div>
-                    <strong>Total TTC :</strong> {damageTotals.totalTtc.toFixed(2)} MAD
-                  </div>
-                  <div>
-                    <strong>Apres vetuste HT :</strong> {damageTotals.totalAfter.toFixed(2)} MAD
-                  </div>
-                  <div>
-                    <strong>Apres vetuste TTC :</strong> {damageTotals.totalAfterTtc.toFixed(2)} MAD
-                  </div>
-                </div>
+            <div className="damage-totals">
+              <div>
+                <strong>Total HT :</strong> {damageTotals.totalHt.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Total TTC :</strong> {damageTotals.totalTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Apres vetuste HT :</strong> {damageTotals.totalAfter.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Apres vetuste TTC :</strong> {damageTotals.totalAfterTtc.toFixed(2)} MAD
+              </div>
+            </div>
               </>
             ) : (
               <p className="muted">Aucune piece enregistree pour cette mission.</p>
@@ -791,15 +976,15 @@ const MissionFormPage = ({ mode }) => {
         )}
 
         {isEdit && (
-          <fieldset>
-            <legend>Évaluation de la remise en état</legend>
+        <fieldset>
+          <legend>Évaluation de la remise en état</legend>
             {laborError && <div className="alert alert-error">{laborError}</div>}
             <div className="table-wrapper damage-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Main d’oeuvre</th>
-                    <th>Nombre d’heures</th>
+                    <th>Main d'œuvre</th>
+                    <th>Nombre d'heures</th>
                     <th>Taux horaire</th>
                     <th>Hors taxe</th>
                     <th>T.V.A</th>
@@ -840,8 +1025,8 @@ const MissionFormPage = ({ mode }) => {
                   })}
                   <tr>
                     <td>Fournitures</td>
-                    <td>—</td>
-                    <td>—</td>
+                    <td>-</td>
+                    <td>-</td>
                     <td>
                       <input
                         type="number"
@@ -859,15 +1044,15 @@ const MissionFormPage = ({ mode }) => {
             </div>
             <div className="form-actions">
               <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
-                Enregistrer la main d’oeuvre
+                Enregistrer la main d'œuvre
               </button>
             </div>
             <div className="damage-totals">
               <div>
-                <strong>Total main d’oeuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+                <strong>Total main d'œuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Total main d’oeuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+                <strong>Total main d'œuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
@@ -878,9 +1063,142 @@ const MissionFormPage = ({ mode }) => {
               <div>
                 <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
               </div>
+              <div>
+                <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
+              </div>
+              <div className="form-field">
+                <span>Montant final de l'indemnisation (MAD)</span>
+                <div className="inline-input">
+                  <input
+                    name="indemnisationFinale"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.indemnisationFinale}
+                    onChange={handleChange}
+                  />
+                  <button type="button" className="btn btn-secondary" onClick={handleIndemnisationRecalc}>
+                    Recalculer
+                  </button>
+                </div>
+                <small className="muted">
+                  Calcul = Montant total TTC ({laborTotals.grandTotalTtc.toFixed(2)} MAD) - Franchise (
+                  {franchiseAmount.toFixed(2)} MAD)
+                </small>
             </div>
-          </fieldset>
-        )}
+          </div>
+            <div className="form-grid">
+          <label className="form-field">
+            <span>Type de garantie</span>
+            <select name="garantieType" value={form.garantieType} onChange={handleChange}>
+              <option value="">Selectionner un type</option>
+              {GUARANTEE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {showFranchiseFields && (
+                <>
+                  <label className="form-field">
+                    <span>Taux franchise (%)</span>
+                    <input
+                      name="garantieFranchiseTaux"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={form.garantieFranchiseTaux}
+                      onChange={handleChange}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Franchise (MAD)</span>
+                    <input
+                      name="garantieFranchiseMontant"
+                      type="number"
+                      min="0"
+                      step="10"
+                      value={form.garantieFranchiseMontant}
+                      onChange={handleChange}
+                    />
+                  </label>
+                </>
+              )}
+          <label className="form-field">
+            <span>Responsabilite</span>
+            <select name="responsabilite" value={form.responsabilite} onChange={handleChange}>
+              <option value="">Selectionner un taux</option>
+              {RESPONSIBILITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+            </select>
+          </label>
+        </div>
+        <div className="form-grid">
+          <label className="form-field">
+            <span>Reforme</span>
+            <select name="reformeType" value={form.reformeType} onChange={handleChange}>
+              <option value="">Aucune</option>
+              {REFORME_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>Valeur assuree (MAD)</span>
+            <input
+              name="valeurAssuree"
+              type="number"
+              min="0"
+              step="100"
+              value={form.valeurAssuree}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Valeur venale (MAD)</span>
+            <input
+              name="valeurVenale"
+              type="number"
+              min="0"
+              step="100"
+              value={form.valeurVenale}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Valeur epaves (MAD)</span>
+            <input
+              name="valeurEpaves"
+              type="number"
+              min="0"
+              step="100"
+              value={form.valeurEpaves}
+              onChange={handleChange}
+            />
+          </label>
+        </div>
+
+        <fieldset>
+          <legend>Synthese</legend>
+          <label className="form-field">
+            <span>Résumé / Synthèse de mission</span>
+            <textarea
+              name="synthese"
+              rows={4}
+              value={form.synthese}
+              onChange={handleChange}
+              placeholder="Saisissez ici les remarques ou conclusions principales..."
+            />
+          </label>
+        </fieldset>
+      </fieldset>
+    )}
 
         <fieldset>
           <legend>Vehicule</legend>
@@ -919,6 +1237,10 @@ const MissionFormPage = ({ mode }) => {
             />
           </label>
           <label className="form-field">
+            <span>Numero de chassis (VIN)</span>
+            <input name="vehiculeVin" value={form.vehiculeVin} onChange={handleChange} />
+          </label>
+          <label className="form-field">
             <span>Date de mise en circulation</span>
             <input
               name="vehiculeAnnee"
@@ -926,6 +1248,35 @@ const MissionFormPage = ({ mode }) => {
               value={form.vehiculeAnnee || ''}
               onChange={handleChange}
             />
+          </label>
+          <label className="form-field">
+            <span>Kilometrage</span>
+            <input
+              name="vehiculeKilometrage"
+              type="number"
+              min="0"
+              value={form.vehiculeKilometrage}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Puissance fiscale</span>
+            <input
+              name="vehiculePuissanceFiscale"
+              value={form.vehiculePuissanceFiscale}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Energie</span>
+            <select name="vehiculeEnergie" value={form.vehiculeEnergie} onChange={handleChange}>
+              <option value="">Selectionner une energie</option>
+              {ENERGY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
         </fieldset>
 
@@ -960,6 +1311,18 @@ const MissionFormPage = ({ mode }) => {
             <input
               name="sinistrePoliceAdverse"
               value={form.sinistrePoliceAdverse}
+              onChange={handleChange}
+            />
+          </label>
+          <label className="form-field">
+            <span>Nom &amp; prenom adverse</span>
+            <input name="sinistreNomAdverse" value={form.sinistreNomAdverse} onChange={handleChange} />
+          </label>
+          <label className="form-field">
+            <span>Immatriculation adverse</span>
+            <input
+              name="sinistreImmatriculationAdverse"
+              value={form.sinistreImmatriculationAdverse}
               onChange={handleChange}
             />
           </label>
@@ -1087,6 +1450,7 @@ const MissionFormPage = ({ mode }) => {
 };
 
 export default MissionFormPage;
+
 
 
 

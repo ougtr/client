@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { ASSET_URL } from '../api/http';
 
 const formatDate = (value) => {
@@ -32,6 +32,14 @@ const DocumentList = ({ documents = [], canDelete = false, onDelete }) => {
     }
   };
 
+  const handleView = (event, documentUrl) => {
+    event.preventDefault();
+    if (!documentUrl) {
+      return;
+    }
+    window.open(`${ASSET_URL}${documentUrl}`, '_blank', 'noopener,noreferrer');
+  };
+
   if (!documents.length) {
     return <p className="muted">Aucun document disponible.</p>;
   }
@@ -60,8 +68,11 @@ const DocumentList = ({ documents = [], canDelete = false, onDelete }) => {
                 rel="noopener noreferrer"
                 download={displayName || true}
               >
-                Télécharger
+                Telecharger
               </a>
+              <button type="button" className="btn-action" onClick={(event) => handleView(event, doc.url)}>
+                Visualiser
+              </button>
               {canDelete && (
                 <button
                   type="button"

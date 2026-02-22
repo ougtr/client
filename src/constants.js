@@ -251,6 +251,14 @@ export const DAMAGE_PARTS = [
   'Câbles trappe carburant',
 ];
 
+export const DAMAGE_TYPE_OPTIONS = [
+  { value: 'original', label: 'Original' },
+  { value: 'reparation', label: 'Reparation' },
+  { value: 'reccuperation', label: 'Reccuperation' },
+  { value: 'adaptation', label: 'Adaptation' },
+  { value: 'produit_peinture', label: 'Produit peinture' },
+];
+
 export const LABOR_CATEGORIES = [
   { id: 'tolerie_changement', label: 'Tôlerie (changement)' },
   { id: 'tolerie_dressage', label: 'Tôlerie (dressage)' },
