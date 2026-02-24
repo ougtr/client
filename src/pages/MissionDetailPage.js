@@ -188,7 +188,9 @@ const MissionDetailPage = () => {
   const [laborTotals, setLaborTotals] = useState(DEFAULT_LABOR_TOTALS);
 
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
+  const missionLabel = mission?.missionCode ? mission.missionCode : mission ? `#${mission.id}` : '#';
   const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
+  const netEvaluationTtc = Math.max(0, totalEvaluationTtc - damageVetusteLoss);
   const { missionFranchiseAmount, missionRecommendedIndemnisation } = useMemo(() => {
     if (!mission) {
       return { missionFranchiseAmount: 0, missionRecommendedIndemnisation: 0 };
@@ -199,9 +201,9 @@ const MissionDetailPage = () => {
     const franchise = Math.max(percentValue, fixed);
     return {
       missionFranchiseAmount: franchise,
-      missionRecommendedIndemnisation: Math.max(0, totalEvaluationTtc - franchise),
+      missionRecommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
     };
-  }, [mission, totalEvaluationTtc]);
+  }, [mission, totalEvaluationTtc, netEvaluationTtc]);
   const displayedIndemnisation =
     mission && mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
       ? Number(mission.indemnisationFinale)
@@ -460,7 +462,7 @@ const MissionDetailPage = () => {
           <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
             Retour aux missions
           </button>
-          <h1>Mission #{mission.id}</h1>
+          <h1>Mission {missionLabel}</h1>
           <p className="muted">
             Derniere mise a jour {mission.updatedAt ? dayjs(mission.updatedAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
           </p>
@@ -628,8 +630,8 @@ const MissionDetailPage = () => {
                     <td>-</td>
                     <td>-</td>
                     <td>{laborTotals.suppliesHt.toFixed(2)} MAD</td>
-                    <td>{(laborTotals.suppliesTva ?? laborTotals.suppliesHt * 0.2).toFixed(2)} MAD</td>
-                    <td>{(laborTotals.suppliesTtc ?? laborTotals.suppliesHt * 1.2).toFixed(2)} MAD</td>
+                    <td>{Math.max(0, (laborTotals.suppliesTtc || 0) - (laborTotals.suppliesHt || 0)).toFixed(2)} MAD</td>
+                    <td>{(laborTotals.suppliesTtc || 0).toFixed(2)} MAD</td>
                   </tr>
                 </tbody>
               </table>
@@ -649,6 +651,9 @@ const MissionDetailPage = () => {
               </div>
               <div>
                 <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Montant TTC après vétusté :</strong> {netEvaluationTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD

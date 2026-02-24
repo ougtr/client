@@ -34,6 +34,7 @@ const emptyForm = {
   sinistrePoliceAdverse: '',
   sinistreNomAdverse: '',
   sinistreImmatriculationAdverse: '',
+  missionCode: '',
   garageId: '',
   agentId: '',
   statut: 'cree',
@@ -68,14 +69,15 @@ const buildLaborEntries = (entries = []) => {
   });
 };
 
-const computeLaborTotals = (entries, suppliesHt) => {
+const computeLaborTotals = (entries, suppliesHt, suppliesTtcInput) => {
   const supplies = Number(suppliesHt) || 0;
+  const suppliesTtc =
+    suppliesTtcInput !== null && suppliesTtcInput !== undefined ? Number(suppliesTtcInput) || 0 : supplies * 1.2;
+  const suppliesTva = Math.max(0, suppliesTtc - supplies);
   const totalHours = entries.reduce((sum, entry) => sum + entry.hours, 0);
   const totalHt = entries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
   const totalTva = totalHt * 0.2;
   const totalTtc = totalHt + totalTva;
-  const suppliesTva = supplies * 0.2;
-  const suppliesTtc = supplies + suppliesTva;
   return {
     totalHours,
     totalHt,
@@ -85,6 +87,7 @@ const computeLaborTotals = (entries, suppliesHt) => {
     suppliesTva,
     suppliesTtc,
     grandTotalHt: totalHt + supplies,
+    grandTotalTva: totalTva + suppliesTva,
     grandTotalTtc: totalTtc + suppliesTtc,
   };
 };
@@ -191,8 +194,12 @@ const MissionFormPage = ({ mode }) => {
   const [damageError, setDamageError] = useState('');
   const [damageSubmitting, setDamageSubmitting] = useState(false);
   const [labors, setLabors] = useState(buildLaborEntries());
-  const [laborSupplies, setLaborSupplies] = useState(0);
-  const laborTotals = useMemo(() => computeLaborTotals(labors, laborSupplies), [labors, laborSupplies]);
+  const [laborSuppliesHt, setLaborSuppliesHt] = useState(0);
+  const [laborSuppliesTtc, setLaborSuppliesTtc] = useState(0);
+  const laborTotals = useMemo(
+    () => computeLaborTotals(labors, laborSuppliesHt, laborSuppliesTtc),
+    [labors, laborSuppliesHt, laborSuppliesTtc]
+  );
   const [laborError, setLaborError] = useState('');
   const [laborSaving, setLaborSaving] = useState(false);
 
@@ -322,6 +329,7 @@ const MissionFormPage = ({ mode }) => {
             mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
               ? String(mission.indemnisationFinale)
               : '',
+          missionCode: mission.missionCode || '',
           synthese: mission.synthese || '',
           garageId: mission.garageId ? String(mission.garageId) : '',
           agentId: mission.agentId ? String(mission.agentId) : '',
@@ -330,7 +338,13 @@ const MissionFormPage = ({ mode }) => {
         setDamages(data.damages || []);
         setDamageTotals(data.damageTotals || DEFAULT_DAMAGE_TOTALS);
         setLabors(buildLaborEntries(data.labors || []));
-        setLaborSupplies(data.laborTotals?.suppliesHt || 0);
+        const loadedSuppliesHt = data.laborTotals?.suppliesHt || 0;
+        const loadedSuppliesTtc =
+          data.laborTotals?.suppliesTtc !== undefined && data.laborTotals?.suppliesTtc !== null
+            ? data.laborTotals.suppliesTtc
+            : loadedSuppliesHt * 1.2;
+        setLaborSuppliesHt(loadedSuppliesHt);
+        setLaborSuppliesTtc(loadedSuppliesTtc);
         setLegacyGarage(
           mission.garageId
             ? null
@@ -465,17 +479,18 @@ const MissionFormPage = ({ mode }) => {
   const statusOptions = useMemo(() => MISSION_STATUSES, []);
   const showFranchiseFields = guaranteeRequiresFranchise(form.garantieType);
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
+  const totalTtcBrut = Math.max(0, laborTotals.grandTotalTtc || 0);
+  const netEvaluationTtc = Math.max(0, totalTtcBrut - damageVetusteLoss);
   const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
-    const totalTtc = laborTotals.grandTotalTtc || 0;
     const rate = Number(form.garantieFranchiseTaux) || 0;
     const fixed = Number(form.garantieFranchiseMontant) || 0;
-    const percentValue = (rate / 100) * totalTtc;
+    const percentValue = (rate / 100) * totalTtcBrut;
     const franchise = Math.max(percentValue, fixed);
     return {
       franchiseAmount: franchise,
-      recommendedIndemnisation: Math.max(0, totalTtc - franchise),
+      recommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
     };
-  }, [laborTotals.grandTotalTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant]);
+  }, [totalTtcBrut, netEvaluationTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant]);
 
   const handleIndemnisationRecalc = () => {
     setForm((prev) => ({
@@ -488,14 +503,14 @@ const MissionFormPage = ({ mode }) => {
     if (
       !isEdit &&
       (form.indemnisationFinale === '' || form.indemnisationFinale === null) &&
-      laborTotals.grandTotalTtc
+      netEvaluationTtc
     ) {
       setForm((prev) => ({
         ...prev,
         indemnisationFinale: recommendedIndemnisation.toFixed(2),
       }));
     }
-  }, [laborTotals.grandTotalTtc, form.indemnisationFinale, isEdit, recommendedIndemnisation]);
+  }, [netEvaluationTtc, form.indemnisationFinale, isEdit, recommendedIndemnisation]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -652,8 +667,22 @@ const handleDamageCheckboxChange = (event) => {
     );
   };
 
-  const handleLaborSuppliesChange = (event) => {
-    setLaborSupplies(Number(event.target.value) || 0);
+  const handleLaborSuppliesHtChange = (event) => {
+    const rawValue = Number(event.target.value);
+    if (Number.isNaN(rawValue) || rawValue < 0) {
+      setLaborSuppliesHt(0);
+      return;
+    }
+    setLaborSuppliesHt(rawValue);
+  };
+
+  const handleLaborSuppliesTtcChange = (event) => {
+    const rawValue = Number(event.target.value);
+    if (Number.isNaN(rawValue) || rawValue < 0) {
+      setLaborSuppliesTtc(0);
+      return;
+    }
+    setLaborSuppliesTtc(rawValue);
   };
 
   const handleLaborSave = async () => {
@@ -669,11 +698,18 @@ const handleDamageCheckboxChange = (event) => {
           hours: entry.hours,
           rate: entry.rate,
         })),
-        suppliesHt: laborSupplies,
+        suppliesHt: laborSuppliesHt,
+        suppliesTtc: laborSuppliesTtc,
       };
       const response = await saveLabors(token, id, payload);
       setLabors(buildLaborEntries(response.entries || []));
-      setLaborSupplies(response.totals?.suppliesHt || 0);
+      const updatedHt = response.totals?.suppliesHt || 0;
+      const updatedTtc =
+        response.totals?.suppliesTtc !== undefined && response.totals?.suppliesTtc !== null
+          ? response.totals.suppliesTtc
+          : laborSuppliesTtc;
+      setLaborSuppliesHt(updatedHt);
+      setLaborSuppliesTtc(updatedTtc);
     } catch (err) {
       setLaborError(err.message || 'Enregistrement impossible');
     } finally {
@@ -721,6 +757,10 @@ const handleDamageCheckboxChange = (event) => {
     payload.valeurAssuree = form.valeurAssuree !== '' ? Number(form.valeurAssuree) : null;
     payload.valeurVenale = form.valeurVenale !== '' ? Number(form.valeurVenale) : null;
     payload.valeurEpaves = form.valeurEpaves !== '' ? Number(form.valeurEpaves) : null;
+    payload.missionCode =
+      typeof form.missionCode === 'string' && form.missionCode.trim() !== ''
+        ? form.missionCode.trim()
+        : null;
 
     try {
       const response = isEdit
@@ -756,10 +796,25 @@ const handleDamageCheckboxChange = (event) => {
         <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
           Retour aux missions
         </button>
-        <h1>{isEdit ? `Modifier la mission #${id}` : 'Nouvelle mission'}</h1>
+        <h1>
+          {isEdit ? `Modifier la mission ${form.missionCode || `#${id}`}` : 'Nouvelle mission'}
+        </h1>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
       <form className="card form-grid" noValidate onSubmit={handleSubmit}>
+        <fieldset>
+          <legend>Mission</legend>
+          <label className="form-field">
+            <span>Code mission</span>
+            <input
+              name="missionCode"
+              value={form.missionCode}
+              onChange={handleChange}
+              placeholder="Ex : M-2024-001"
+            />
+          </label>
+        </fieldset>
+
         <fieldset>
           <legend>Assureur</legend>
           {!referenceLoading && !hasInsurers && (
@@ -1031,13 +1086,21 @@ const handleDamageCheckboxChange = (event) => {
                       <input
                         type="number"
                         min="0"
-                        step="10"
-                        value={laborSupplies}
-                        onChange={handleLaborSuppliesChange}
+                        step="0.01"
+                        value={laborSuppliesHt}
+                        onChange={handleLaborSuppliesHtChange}
                       />
                     </td>
-                    <td>{(laborSupplies * 0.2).toFixed(2)} MAD</td>
-                    <td>{(laborSupplies * 1.2).toFixed(2)} MAD</td>
+                    <td>{Math.max(0, laborSuppliesTtc - laborSuppliesHt).toFixed(2)} MAD</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={laborSuppliesTtc}
+                        onChange={handleLaborSuppliesTtcChange}
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -1061,7 +1124,10 @@ const handleDamageCheckboxChange = (event) => {
                 <strong>Fournitures TTC :</strong> {laborTotals.suppliesTtc.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Montant total TTC :</strong> {laborTotals.grandTotalTtc.toFixed(2)} MAD
+                <strong>Montant total TTC (brut) :</strong> {totalTtcBrut.toFixed(2)} MAD
+              </div>
+              <div>
+                <strong>Montant TTC après vétusté :</strong> {netEvaluationTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
@@ -1082,8 +1148,8 @@ const handleDamageCheckboxChange = (event) => {
                   </button>
                 </div>
                 <small className="muted">
-                  Calcul = Montant total TTC ({laborTotals.grandTotalTtc.toFixed(2)} MAD) - Franchise (
-                  {franchiseAmount.toFixed(2)} MAD)
+                  Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vétusté {damageVetusteLoss.toFixed(2)} MAD)
+                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculée sur TTC brut)
                 </small>
             </div>
           </div>
@@ -1450,6 +1516,7 @@ const handleDamageCheckboxChange = (event) => {
 };
 
 export default MissionFormPage;
+
 
 
 
