@@ -1,3 +1,5 @@
+import SearchableSelect from './SearchableSelect';
+
 const ROLE_LABELS = {
   GESTIONNAIRE: 'Gestionnaire',
   AGENT: 'Agent',
@@ -33,17 +35,18 @@ const MissionFilters = ({ filters, onChange, onReset, statuses, assignees = [], 
           </select>
         </label>
         {isManager && (
-          <label className="form-field">
-            <span>Responsable</span>
-            <select name="agentId" value={filters.agentId || ''} onChange={handleChange}>
-              <option value="">Tous</option>
-              {assignees.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {`${user.login} (${ROLE_LABELS[user.role] || user.role})`}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelect
+            label="Responsable"
+            name="agentId"
+            value={filters.agentId || ''}
+            onChange={handleChange}
+            placeholder="Tous"
+            searchPlaceholder="Rechercher un responsable..."
+            options={assignees.map((user) => ({
+              value: String(user.id),
+              label: `${user.login} (${ROLE_LABELS[user.role] || user.role})`,
+            }))}
+          />
         )}
         <label className="form-field">
           <span>Du</span>

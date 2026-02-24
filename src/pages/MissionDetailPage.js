@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,8 @@ import PhotoGallery from '../components/PhotoGallery';
 import DocumentList from '../components/DocumentList';
 import StatusBadge from '../components/StatusBadge';
 import { MISSION_STATUSES, PHOTO_LABELS, DAMAGE_TYPE_OPTIONS } from '../constants';
+import ToastStack from '../components/ToastStack';
+import SkeletonBlock from '../components/SkeletonBlock';
 
 const formatStatusLabel = (status) => status.replace(/_/g, ' ');
 
@@ -186,21 +188,30 @@ const MissionDetailPage = () => {
   const [damageTotals, setDamageTotals] = useState(DEFAULT_DAMAGE_TOTALS);
   const [labors, setLabors] = useState([]);
   const [laborTotals, setLaborTotals] = useState(DEFAULT_LABOR_TOTALS);
+  const [toasts, setToasts] = useState([]);
+
+  const pushToast = (type, message) => {
+    const toastId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setToasts((prev) => [...prev, { id: toastId, type, message }]);
+  };
+
+  const dismissToast = (toastId) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== toastId));
+  };
 
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
   const missionLabel = mission?.missionCode ? mission.missionCode : mission ? `#${mission.id}` : '#';
   const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
   const netEvaluationTtc = Math.max(0, totalEvaluationTtc - damageVetusteLoss);
-  const { missionFranchiseAmount, missionRecommendedIndemnisation } = useMemo(() => {
+  const { missionRecommendedIndemnisation } = useMemo(() => {
     if (!mission) {
-      return { missionFranchiseAmount: 0, missionRecommendedIndemnisation: 0 };
+      return { missionRecommendedIndemnisation: 0 };
     }
     const rate = Number(mission.garantieFranchiseTaux) || 0;
     const fixed = Number(mission.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalEvaluationTtc;
     const franchise = Math.max(percentValue, fixed);
     return {
-      missionFranchiseAmount: franchise,
       missionRecommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
     };
   }, [mission, totalEvaluationTtc, netEvaluationTtc]);
@@ -289,8 +300,10 @@ const MissionDetailPage = () => {
     try {
       const updated = await updateMissionStatus(token, id, statut);
       setMission(updated);
+      pushToast('success', 'Statut mis a jour.');
     } catch (err) {
       setStatusError(err.message || 'Mise a jour impossible');
+      pushToast('error', err.message || 'Mise a jour impossible');
     } finally {
       setStatusUpdating(false);
     }
@@ -322,8 +335,10 @@ const MissionDetailPage = () => {
       setUploadPhase('avant');
       setLabelSearch('');
       setPhotoLabel(availableLabels[0] || '');
+      pushToast('success', 'Photos importees.');
     } catch (err) {
       setPhotoActionError(err.message || 'Echec de lenvoi');
+      pushToast('error', err.message || 'Echec de lenvoi');
     } finally {
       setUploading(false);
     }
@@ -335,8 +350,10 @@ const MissionDetailPage = () => {
       const response = await deleteMissionPhoto(token, id, photo.id);
       setPhotos(response.photos || []);
       setMission(response.mission || mission);
+      pushToast('success', 'Photo supprimee.');
     } catch (err) {
       setPhotoActionError(err.message || 'Suppression impossible');
+      pushToast('error', err.message || 'Suppression impossible');
       throw err;
     }
   };
@@ -356,8 +373,10 @@ const MissionDetailPage = () => {
       setDocuments(response.documents || []);
       setMission(response.mission || mission);
       event.target.reset();
+      pushToast('success', 'Documents importes.');
     } catch (err) {
       setDocumentActionError(err.message || 'Import impossible');
+      pushToast('error', err.message || 'Import impossible');
     } finally {
       setDocumentUploading(false);
     }
@@ -369,8 +388,10 @@ const MissionDetailPage = () => {
       const response = await deleteMissionDocument(token, id, document.id);
       setDocuments(response.documents || []);
       setMission(response.mission || mission);
+      pushToast('success', 'Document supprime.');
     } catch (err) {
       setDocumentActionError(err.message || 'Suppression impossible');
+      pushToast('error', err.message || 'Suppression impossible');
       throw err;
     }
   };
@@ -399,8 +420,10 @@ const MissionDetailPage = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
+      pushToast('success', 'Export PDF termine.');
     } catch (err) {
       setError(err.message || 'Export impossible');
+      pushToast('error', err.message || 'Export impossible');
     } finally {
       setExporting(false);
     }
@@ -421,7 +444,8 @@ const MissionDetailPage = () => {
   if (loading) {
     return (
       <div className="page">
-        <div className="loading">Chargement...</div>
+        <SkeletonBlock lines={8} />
+        <SkeletonBlock lines={6} />
       </div>
     );
   }
@@ -457,16 +481,23 @@ const MissionDetailPage = () => {
 
   return (
     <div className="page mission-detail">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <div className="page-header">
         <div>
-          <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
-            Retour aux missions
-          </button>
+          <div className="page-breadcrumb">
+            <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
+              Missions
+            </button>
+            <span>/</span>
+            <span className="breadcrumb-chip">Mission {missionLabel}</span>
+          </div>
           <h1>Mission {missionLabel}</h1>
-          <p className="muted">
-            Derniere mise a jour {mission.updatedAt ? dayjs(mission.updatedAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
-          </p>
-          <p className="muted">NÂ° immatriculation : {mission.vehiculeImmatriculation || '-'}</p>
+          <div className="header-chip-list">
+            <span className="header-chip">
+              Derniere mise a jour {mission.updatedAt ? dayjs(mission.updatedAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
+            </span>
+            <span className="header-chip">Immatriculation: {mission.vehiculeImmatriculation || '-'}</span>
+          </div>
         </div>
         <div className="status-panel">
           <StatusBadge statut={mission.statut} />
@@ -843,6 +874,20 @@ const MissionDetailPage = () => {
           onDelete={canManageAttachments ? handleDeleteDocument : undefined}
         />
       </section>
+      <div className="floating-action-spacer" />
+      <div className="floating-action-bar">
+        <button type="button" className="btn btn-outline" onClick={() => navigate('/missions')}>
+          Retour
+        </button>
+        <button type="button" className="btn btn-primary" onClick={handleExportReport} disabled={exporting}>
+          {exporting ? 'Export...' : 'Export PDF'}
+        </button>
+        {isManager && (
+          <button type="button" className="btn btn-secondary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
+            Modifier
+          </button>
+        )}
+      </div>
     </div>
   );
 };

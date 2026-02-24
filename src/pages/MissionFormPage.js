@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { createMission, getMission, updateMission } from '../api/missions';
@@ -10,6 +10,9 @@ import { listGarages } from '../api/garages';
 import { addDamage, updateDamage, deleteDamage } from '../api/damages';
 import { saveLabors } from '../api/labors';
 import { MISSION_STATUSES, DAMAGE_PARTS, DAMAGE_TYPE_OPTIONS, LABOR_CATEGORIES } from '../constants';
+import SearchableSelect from '../components/SearchableSelect';
+import ToastStack from '../components/ToastStack';
+import SkeletonBlock from '../components/SkeletonBlock';
 
 const emptyForm = {
   assureurId: '',
@@ -165,6 +168,20 @@ const formatDamageTypeLabel = (value) => {
   return DAMAGE_TYPE_LABELS[normalized] || value;
 };
 
+const BASE_SECTIONS = ['mission', 'assureur', 'vehicule', 'assure', 'sinistre', 'garage', 'affectation'];
+const EDIT_ONLY_SECTIONS = ['dommages', 'remise'];
+const SECTION_LABELS = {
+  mission: 'Mission',
+  assureur: 'Assureur',
+  vehicule: 'Vehicule',
+  assure: 'Assure',
+  sinistre: 'Sinistre',
+  garage: 'Garage',
+  affectation: 'Affectation',
+  dommages: 'Dommages',
+  remise: 'Remise en etat',
+};
+
 const MissionFormPage = ({ mode }) => {
   const isEdit = mode === 'edit';
   const { token, isManager } = useAuth();
@@ -202,6 +219,8 @@ const MissionFormPage = ({ mode }) => {
   );
   const [laborError, setLaborError] = useState('');
   const [laborSaving, setLaborSaving] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const [activeSection, setActiveSection] = useState('mission');
 
   const hasInsurers = insurers.length > 0;
   const hasBrands = brands.length > 0;
@@ -224,6 +243,52 @@ const MissionFormPage = ({ mode }) => {
     () => garages.find((garage) => String(garage.id) === String(form.garageId)),
     [garages, form.garageId]
   );
+  const formSections = useMemo(
+    () => [...BASE_SECTIONS, ...(isEdit ? EDIT_ONLY_SECTIONS : [])],
+    [isEdit]
+  );
+  const activeSectionIndex = Math.max(0, formSections.indexOf(activeSection));
+  const canGoPrevSection = activeSectionIndex > 0;
+  const canGoNextSection = activeSectionIndex < formSections.length - 1;
+  const selectedInsurerOptions = insurers.map((insurer) => ({
+    value: String(insurer.id),
+    label: insurer.nom,
+    meta: insurer.contact || '',
+  }));
+  const garageOptions = garages.map((garage) => ({
+    value: String(garage.id),
+    label: garage.nom,
+    meta: `${garage.adresse || ''} ${garage.contact || ''}`.trim(),
+  }));
+  const adverseInsurerOptions = insurers.map((insurer) => ({
+    value: String(insurer.id),
+    label: insurer.nom,
+  }));
+
+  const pushToast = (type, message) => {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+  };
+
+  const dismissToast = (id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
+
+  const goToNextSection = () => {
+    if (!canGoNextSection) {
+      return;
+    }
+    setActiveSection(formSections[activeSectionIndex + 1]);
+  };
+
+  const goToPrevSection = () => {
+    if (!canGoPrevSection) {
+      return;
+    }
+    setActiveSection(formSections[activeSectionIndex - 1]);
+  };
+
+  const isSectionActive = (sectionId) => activeSection === sectionId;
 
   useEffect(() => {
     if (!isManager) {
@@ -476,6 +541,12 @@ const MissionFormPage = ({ mode }) => {
     }
   }, [brands, hasBrands, isEdit, form.vehiculeMarqueId]);
 
+  useEffect(() => {
+    if (!formSections.includes(activeSection)) {
+      setActiveSection(formSections[0] || 'mission');
+    }
+  }, [formSections, activeSection]);
+
   const statusOptions = useMemo(() => MISSION_STATUSES, []);
   const showFranchiseFields = guaranteeRequiresFranchise(form.garantieType);
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
@@ -609,8 +680,10 @@ const handleDamageCheckboxChange = (event) => {
       setDamages(response.items || []);
       setDamageTotals(response.totals || DEFAULT_DAMAGE_TOTALS);
       resetDamageForm();
+      pushToast('success', damageForm.id ? 'Piece mise a jour.' : 'Piece ajoutee.');
     } catch (err) {
       setDamageError(err.message || 'Enregistrement impossible');
+      pushToast('error', err.message || 'Enregistrement impossible');
     } finally {
       setDamageSubmitting(false);
     }
@@ -646,8 +719,10 @@ const handleDamageCheckboxChange = (event) => {
       if (damageForm.id === damage.id) {
         resetDamageForm();
       }
+      pushToast('success', 'Piece supprimee.');
     } catch (err) {
       setDamageError(err.message || 'Suppression impossible');
+      pushToast('error', err.message || 'Suppression impossible');
     } finally {
       setDamageSubmitting(false);
     }
@@ -710,8 +785,10 @@ const handleDamageCheckboxChange = (event) => {
           : laborSuppliesTtc;
       setLaborSuppliesHt(updatedHt);
       setLaborSuppliesTtc(updatedTtc);
+      pushToast('success', 'Main d oeuvre enregistree.');
     } catch (err) {
       setLaborError(err.message || 'Enregistrement impossible');
+      pushToast('error', err.message || 'Enregistrement impossible');
     } finally {
       setLaborSaving(false);
     }
@@ -766,9 +843,11 @@ const handleDamageCheckboxChange = (event) => {
       const response = isEdit
         ? await updateMission(token, id, payload)
         : await createMission(token, payload);
+      pushToast('success', 'Mission enregistree.');
       navigate(`/missions/${response.id}`);
     } catch (err) {
       setError(err.message || 'Enregistrement impossible');
+      pushToast('error', err.message || 'Enregistrement impossible');
     } finally {
       setSaving(false);
     }
@@ -785,24 +864,60 @@ const handleDamageCheckboxChange = (event) => {
   if (loading) {
     return (
       <div className="page">
-        <div className="loading">Chargement...</div>
+        <SkeletonBlock lines={7} />
+        <SkeletonBlock lines={5} />
       </div>
     );
   }
 
   return (
     <div className="page">
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <div className="page-header">
-        <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
-          Retour aux missions
-        </button>
-        <h1>
-          {isEdit ? `Modifier la mission ${form.missionCode || `#${id}`}` : 'Nouvelle mission'}
-        </h1>
+        <div>
+          <div className="page-breadcrumb">
+            <button type="button" className="btn btn-link" onClick={() => navigate('/missions')}>
+              Missions
+            </button>
+            <span>/</span>
+            <span className="breadcrumb-chip">{isEdit ? 'Edition' : 'Creation'}</span>
+          </div>
+          <h1>{isEdit ? `Modifier la mission ${form.missionCode || `#${id}`}` : 'Nouvelle mission'}</h1>
+          <div className="header-chip-list">
+            <span className="header-chip">Section: {SECTION_LABELS[activeSection]}</span>
+            {isEdit && <span className="header-chip">Statut: {form.statut || '-'}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="card">
+        <div className="section-tabs" role="tablist" aria-label="Sections du formulaire">
+          {formSections.map((section) => (
+            <button
+              key={section}
+              type="button"
+              className={`section-tab ${isSectionActive(section) ? 'active' : ''}`}
+              onClick={() => setActiveSection(section)}
+            >
+              {SECTION_LABELS[section]}
+            </button>
+          ))}
+        </div>
+        <div className="form-stepper">
+          <button type="button" className="btn btn-secondary" onClick={goToPrevSection} disabled={!canGoPrevSection}>
+            Precedent
+          </button>
+          <span className="muted">
+            {activeSectionIndex + 1} / {formSections.length}
+          </span>
+          <button type="button" className="btn btn-secondary" onClick={goToNextSection} disabled={!canGoNextSection}>
+            Suivant
+          </button>
+        </div>
       </div>
       {error && <div className="alert alert-error">{error}</div>}
-      <form className="card form-grid" noValidate onSubmit={handleSubmit}>
-        <fieldset>
+      <form id="mission-form" className="card form-grid mission-form-grid" noValidate onSubmit={handleSubmit}>
+        <fieldset className={`form-section-panel ${isSectionActive('mission') ? 'active' : ''}`}>
           <legend>Mission</legend>
           <label className="form-field">
             <span>Code mission</span>
@@ -815,35 +930,29 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </fieldset>
 
-        <fieldset>
+        <fieldset className={`form-section-panel ${isSectionActive('assureur') ? 'active' : ''}`}>
           <legend>Assureur</legend>
           {!referenceLoading && !hasInsurers && (
             <p className="alert alert-error">
               Aucun assureur disponible. Ajoutez-en depuis le menu "Assureurs" avant de creer une mission.
             </p>
           )}
-          <label className="form-field required">
-            <span>Assureur</span>
-            <select
-              name="assureurId"
-              value={form.assureurId}
-              onChange={handleAssureurChange}
-              required
-              disabled={!hasInsurers}
-            >
-              <option value="">Selectionner un assureur</option>
-              {insurers.map((insurer) => (
-                <option key={insurer.id} value={insurer.id}>
-                  {insurer.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-          {selectedInsurer && (
-            <div className="muted">
-              Contact : {selectedInsurer.contact || '-'}
-            </div>
-          )}
+          <SearchableSelect
+            className="required"
+            label="Assureur"
+            name="assureurId"
+            value={form.assureurId}
+            onChange={handleAssureurChange}
+            options={selectedInsurerOptions}
+            placeholder="Selectionner un assureur"
+            searchPlaceholder="Rechercher un assureur..."
+            required
+            disabled={!hasInsurers}
+            helper={selectedInsurer ? `Contact : ${selectedInsurer.contact || '-'}` : ''}
+          />
+          <small className={`field-hint ${form.assureurId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
+            {form.assureurId ? '✓ Assureur selectionne' : '⚠ Assureur requis'}
+          </small>
           <label className="form-field">
             <span>Agence d'assurance</span>
             <select
@@ -873,7 +982,7 @@ const handleDamageCheckboxChange = (event) => {
         </fieldset>
 
         {isEdit && (
-          <fieldset>
+          <fieldset className={`form-section-panel ${isSectionActive('dommages') ? 'active' : ''}`}>
             <legend>Description des dommages</legend>
             {damageError && <div className="alert alert-error">{damageError}</div>}
             <div className="damage-form">
@@ -1031,7 +1140,7 @@ const handleDamageCheckboxChange = (event) => {
         )}
 
         {isEdit && (
-        <fieldset>
+        <fieldset className={`form-section-panel ${isSectionActive('remise') ? 'active' : ''}`}>
           <legend>Évaluation de la remise en état</legend>
             {laborError && <div className="alert alert-error">{laborError}</div>}
             <div className="table-wrapper damage-table">
@@ -1252,7 +1361,7 @@ const handleDamageCheckboxChange = (event) => {
 
         <fieldset>
           <legend>Synthese</legend>
-          <label className="form-field">
+          <label className="form-field form-field-full">
             <span>Résumé / Synthèse de mission</span>
             <textarea
               name="synthese"
@@ -1266,7 +1375,7 @@ const handleDamageCheckboxChange = (event) => {
       </fieldset>
     )}
 
-        <fieldset>
+	        <fieldset className={`form-section-panel ${isSectionActive('vehicule') ? 'active' : ''}`}>
           <legend>Vehicule</legend>
           {!referenceLoading && !hasBrands && (
             <p className="alert alert-error">
@@ -1289,6 +1398,9 @@ const handleDamageCheckboxChange = (event) => {
                 </option>
               ))}
             </select>
+            <small className={`field-hint ${form.vehiculeMarqueId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
+              {form.vehiculeMarqueId ? '✓ Marque selectionnee' : '⚠ Marque requise'}
+            </small>
           </label>
           <label className="form-field">
             <span>Modele</span>
@@ -1346,11 +1458,14 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </fieldset>
 
-        <fieldset>
+	        <fieldset className={`form-section-panel ${isSectionActive('assure') ? 'active' : ''}`}>
           <legend>Assure</legend>
           <label className="form-field required">
             <span>Nom</span>
             <input name="assureNom" value={form.assureNom} onChange={handleChange} required />
+            <small className={`field-hint ${form.assureNom ? 'field-hint-valid' : 'field-hint-invalid'}`}>
+              {form.assureNom ? '✓ Nom renseigne' : '⚠ Nom requis'}
+            </small>
           </label>
           <label className="form-field">
             <span>Telephone</span>
@@ -1362,7 +1477,7 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </fieldset>
 
-        <fieldset>
+	        <fieldset className={`form-section-panel ${isSectionActive('sinistre') ? 'active' : ''}`}>
           <legend>Sinistre</legend>
           <label className="form-field">
             <span>Code sinistre</span>
@@ -1392,23 +1507,17 @@ const handleDamageCheckboxChange = (event) => {
               onChange={handleChange}
             />
           </label>
-          <label className="form-field">
-            <span>Compagnie adverse</span>
-            <select
-              name="assureurAdverseId"
-              value={form.assureurAdverseId}
-              onChange={handleChange}
-              disabled={!insurers.length}
-            >
-            <option value="">-</option>
-              {insurers.map((insurer) => (
-                <option key={insurer.id} value={insurer.id}>
-                  {insurer.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
+          <SearchableSelect
+            label="Compagnie adverse"
+            name="assureurAdverseId"
+            value={form.assureurAdverseId}
+            onChange={handleChange}
+            options={adverseInsurerOptions}
+            placeholder="-"
+            searchPlaceholder="Rechercher une compagnie..."
+            disabled={!insurers.length}
+          />
+          <label className="form-field form-field-full">
             <span>Circonstances</span>
             <textarea
               name="sinistreCirconstances"
@@ -1428,7 +1537,7 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </fieldset>
 
-        <fieldset>
+	        <fieldset className={`form-section-panel ${isSectionActive('garage') ? 'active' : ''}`}>
           <legend>Garage</legend>
           {!referenceLoading && !hasGarages && (
             <p className="alert alert-info">
@@ -1443,22 +1552,16 @@ const handleDamageCheckboxChange = (event) => {
               Vous pouvez en selectionner un dans la liste ci-dessous ou laisser ce champ vide.
             </p>
           )}
-          <label className="form-field">
-            <span>Garage</span>
-            <select
-              name="garageId"
-              value={form.garageId}
-              onChange={handleGarageChange}
-              disabled={!hasGarages}
-            >
-              <option value="">Selectionner un garage</option>
-              {garages.map((garage) => (
-                <option key={garage.id} value={garage.id}>
-                  {garage.nom}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelect
+            label="Garage"
+            name="garageId"
+            value={form.garageId}
+            onChange={handleGarageChange}
+            options={garageOptions}
+            placeholder="Selectionner un garage"
+            searchPlaceholder="Rechercher un garage..."
+            disabled={!hasGarages}
+          />
           {(form.garageId ? selectedGarage : legacyGarage) && (
             <div className="muted">
               <div>
@@ -1471,7 +1574,7 @@ const handleDamageCheckboxChange = (event) => {
           )}
         </fieldset>
 
-        <fieldset>
+	        <fieldset className={`form-section-panel ${isSectionActive('affectation') ? 'active' : ''}`}>
           <legend>Affectation</legend>
           <label className="form-field">
             <span>Responsable</span>
@@ -1511,6 +1614,20 @@ const handleDamageCheckboxChange = (event) => {
           </button>
         </div>
       </form>
+      <div className="floating-action-spacer" />
+      <div className="floating-action-bar">
+        <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
+          Annuler
+        </button>
+        <button
+          type="submit"
+          form="mission-form"
+          className="btn btn-primary"
+          disabled={saving || !hasInsurers || !hasBrands}
+        >
+          {saving ? 'Enregistrement...' : 'Enregistrer'}
+        </button>
+      </div>
     </div>
   );
 };

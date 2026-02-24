@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { ASSET_URL } from '../api/http';
 
 const formatDate = (value) => {
