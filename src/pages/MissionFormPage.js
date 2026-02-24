@@ -1176,7 +1176,7 @@ const handleDamageCheckboxChange = (event) => {
                           <input
                             type="number"
                             min="0"
-                            step="10"
+                            step="0.01"
                             value={labor.rate}
                             onChange={(event) => handleLaborRowChange(labor.category, 'rate', event.target.value)}
                           />
