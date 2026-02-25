@@ -203,15 +203,16 @@ const MissionDetailPage = () => {
   const missionLabel = mission?.missionCode ? mission.missionCode : mission ? `#${mission.id}` : '#';
   const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
   const netEvaluationTtc = Math.max(0, totalEvaluationTtc - damageVetusteLoss);
-  const { missionRecommendedIndemnisation } = useMemo(() => {
+  const { missionFranchiseAmount, missionRecommendedIndemnisation } = useMemo(() => {
     if (!mission) {
-      return { missionRecommendedIndemnisation: 0 };
+      return { missionFranchiseAmount: 0, missionRecommendedIndemnisation: 0 };
     }
     const rate = Number(mission.garantieFranchiseTaux) || 0;
     const fixed = Number(mission.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalEvaluationTtc;
     const franchise = Math.max(percentValue, fixed);
     return {
+      missionFranchiseAmount: franchise,
       missionRecommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
     };
   }, [mission, totalEvaluationTtc, netEvaluationTtc]);
@@ -507,7 +508,7 @@ const MissionDetailPage = () => {
             onClick={handleExportReport}
             disabled={exporting}
           >
-            {exporting ? 'Export...' : 'Exporter le rapport'}
+            {exporting ? 'Export...' : 'Export PDF'}
           </button>
           {isManager && (
             <button type="button" className="btn btn-primary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
@@ -689,6 +690,11 @@ const MissionDetailPage = () => {
               <div>
                 <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
               </div>
+              {guaranteeRequiresFranchise(mission.garantieType) && (
+                <div>
+                  <strong>Franchise calculé :</strong> {missionFranchiseAmount.toFixed(2)} MAD
+                </div>
+              )}
               <div>
                 <strong>Montant final indemnisation :</strong>{' '}
                 {mission ? `${displayedIndemnisation.toFixed(2)} MAD` : '-'}

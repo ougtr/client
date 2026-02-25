@@ -1241,6 +1241,11 @@ const handleDamageCheckboxChange = (event) => {
               <div>
                 <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
               </div>
+              {showFranchiseFields && (
+                <div>
+                  <strong>Franchise calculé :</strong> {franchiseAmount.toFixed(2)} MAD
+                </div>
+              )}
               <div className="form-field">
                 <span>Montant final de l'indemnisation (MAD)</span>
                 <div className="inline-input">
@@ -1359,7 +1364,7 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </div>
 
-        <fieldset>
+        <fieldset className="form-field-full">
           <legend>Synthese</legend>
           <label className="form-field form-field-full">
             <span>Résumé / Synthèse de mission</span>
