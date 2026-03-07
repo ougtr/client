@@ -20,6 +20,38 @@ import SkeletonBlock from '../components/SkeletonBlock';
 
 const formatStatusLabel = (status) => status.replace(/_/g, ' ');
 
+const isVatEnabled = (value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    return !['0', 'false', 'non', 'off'].includes(value.trim().toLowerCase());
+  }
+  return value === undefined || value === null ? true : Boolean(value);
+};
+
+const parseResponsibilityPercent = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+  const normalized = String(value).replace('%', '').replace(',', '.').trim();
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, numeric));
+};
+
+const applyResponsibilityShare = (amount, responsibilityValue) => {
+  const baseAmount = Math.max(0, Number(amount) || 0);
+  const responsibilityPercent = parseResponsibilityPercent(responsibilityValue);
+  const indemnisationShare = (100 - responsibilityPercent) / 100;
+  return Math.max(0, baseAmount * indemnisationShare);
+};
+
 const formatCirculationDate = (value) => {
   if (!value) {
     return null;
@@ -211,9 +243,10 @@ const MissionDetailPage = () => {
     const fixed = Number(mission.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalEvaluationTtc;
     const franchise = Math.max(percentValue, fixed);
+    const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
     return {
       missionFranchiseAmount: franchise,
-      missionRecommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
+      missionRecommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, mission.responsabilite),
     };
   }, [mission, totalEvaluationTtc, netEvaluationTtc]);
   const displayedIndemnisation =
@@ -547,6 +580,18 @@ const MissionDetailPage = () => {
           {infoItem('Kilometrage', formatKilometrage(mission.vehiculeKilometrage))}
           {infoItem('Puissance fiscale', mission.vehiculePuissanceFiscale)}
           {infoItem('Energie', formatEnergyLabel(mission.vehiculeEnergie))}
+          {infoItem(
+            'V\u00e9hicule vu - Avant travaux',
+            mission.vehiculeVuAvantTravaux ? formatCirculationDate(mission.vehiculeVuAvantTravaux) : null
+          )}
+          {infoItem(
+            'V\u00e9hicule vu - En cours de travaux',
+            mission.vehiculeVuEnCoursTravaux ? formatCirculationDate(mission.vehiculeVuEnCoursTravaux) : null
+          )}
+          {infoItem(
+            'V\u00e9hicule vu - Apr\u00e8s travaux',
+            mission.vehiculeVuApresTravaux ? formatCirculationDate(mission.vehiculeVuApresTravaux) : null
+          )}
         </div>
       </section>
 
@@ -641,6 +686,7 @@ const MissionDetailPage = () => {
                     <th>Main d'œuvre</th>
                     <th>Nombre d'heures</th>
                     <th>Taux horaire</th>
+                    <th>TVA</th>
                     <th>Hors taxe</th>
                     <th>T.V.A</th>
                     <th>Total TTC</th>
@@ -652,6 +698,7 @@ const MissionDetailPage = () => {
                       <td>{labor.label}</td>
                       <td>{labor.hours.toFixed(2)}</td>
                       <td>{labor.rate.toFixed(2)} MAD</td>
+                      <td>{isVatEnabled(labor.withVat) ? 'Oui' : 'Non'}</td>
                       <td>{labor.horsTaxe.toFixed(2)} MAD</td>
                       <td>{labor.tva.toFixed(2)} MAD</td>
                       <td>{labor.ttc.toFixed(2)} MAD</td>
@@ -659,6 +706,7 @@ const MissionDetailPage = () => {
                   ))}
                   <tr>
                     <td>Fournitures</td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>{laborTotals.suppliesHt.toFixed(2)} MAD</td>

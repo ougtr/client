@@ -524,6 +524,19 @@ legend::before {
   grid-column: 1 / -1;
 }
 
+.vehicle-view-group {
+  padding: 0.85rem 1rem 1rem;
+  border: 1px solid #dbe4ff;
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, #f8faff 0%, #eef4ff 100%);
+}
+
+.vehicle-view-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+}
+
 .mission-form-grid .inline-input input {
   max-width: 210px;
 }

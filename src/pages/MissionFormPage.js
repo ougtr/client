@@ -30,6 +30,9 @@ const emptyForm = {
   vehiculeKilometrage: '',
   vehiculePuissanceFiscale: '',
   vehiculeEnergie: '',
+  vehiculeVuAvantTravaux: '',
+  vehiculeVuEnCoursTravaux: '',
+  vehiculeVuApresTravaux: '',
   sinistreType: '',
   sinistreCirconstances: '',
   sinistreDate: '',
@@ -59,6 +62,38 @@ const ROLE_LABELS = {
   AGENT: 'Agent',
 };
 
+const isVatEnabled = (value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    return !['0', 'false', 'non', 'off'].includes(value.trim().toLowerCase());
+  }
+  return value === undefined || value === null ? true : Boolean(value);
+};
+
+const parseResponsibilityPercent = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+  const normalized = String(value).replace('%', '').replace(',', '.').trim();
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, numeric));
+};
+
+const applyResponsibilityShare = (amount, responsibilityValue) => {
+  const baseAmount = Math.max(0, Number(amount) || 0);
+  const responsibilityPercent = parseResponsibilityPercent(responsibilityValue);
+  const indemnisationShare = (100 - responsibilityPercent) / 100;
+  return Math.max(0, baseAmount * indemnisationShare);
+};
+
 const buildLaborEntries = (entries = []) => {
   const existingMap = new Map(entries.map((entry) => [entry.category, entry]));
   return LABOR_CATEGORIES.map((category) => {
@@ -68,6 +103,7 @@ const buildLaborEntries = (entries = []) => {
       label: category.label,
       hours: source ? Number(source.hours) || 0 : 0,
       rate: source ? Number(source.rate) || 0 : 0,
+      withVat: source ? isVatEnabled(source.withVat) : true,
     };
   });
 };
@@ -79,7 +115,7 @@ const computeLaborTotals = (entries, suppliesHt, suppliesTtcInput) => {
   const suppliesTva = Math.max(0, suppliesTtc - supplies);
   const totalHours = entries.reduce((sum, entry) => sum + entry.hours, 0);
   const totalHt = entries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
-  const totalTva = totalHt * 0.2;
+  const totalTva = entries.reduce((sum, entry) => sum + (isVatEnabled(entry.withVat) ? entry.hours * entry.rate * 0.2 : 0), 0);
   const totalTtc = totalHt + totalTva;
   return {
     totalHours,
@@ -168,8 +204,8 @@ const formatDamageTypeLabel = (value) => {
   return DAMAGE_TYPE_LABELS[normalized] || value;
 };
 
-const BASE_SECTIONS = ['mission', 'assureur', 'vehicule', 'assure', 'sinistre', 'garage', 'affectation'];
-const EDIT_ONLY_SECTIONS = ['dommages', 'remise'];
+const BASE_SECTIONS = ['mission', 'assureur', 'vehicule', 'assure', 'sinistre', 'garage', 'remise', 'affectation'];
+const EDIT_ONLY_SECTIONS = ['dommages'];
 const SECTION_LABELS = {
   mission: 'Mission',
   assureur: 'Assureur',
@@ -364,6 +400,9 @@ const MissionFormPage = ({ mode }) => {
               : '',
           vehiculePuissanceFiscale: mission.vehiculePuissanceFiscale || '',
           vehiculeEnergie: mission.vehiculeEnergie || '',
+          vehiculeVuAvantTravaux: formatCirculationInputValue(mission.vehiculeVuAvantTravaux),
+          vehiculeVuEnCoursTravaux: formatCirculationInputValue(mission.vehiculeVuEnCoursTravaux),
+          vehiculeVuApresTravaux: formatCirculationInputValue(mission.vehiculeVuApresTravaux),
           sinistreType: mission.sinistreType || '',
           sinistreCirconstances: mission.sinistreCirconstances || '',
           sinistreDate: mission.sinistreDate || '',
@@ -552,16 +591,19 @@ const MissionFormPage = ({ mode }) => {
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
   const totalTtcBrut = Math.max(0, laborTotals.grandTotalTtc || 0);
   const netEvaluationTtc = Math.max(0, totalTtcBrut - damageVetusteLoss);
+  const responsibilityPercent = parseResponsibilityPercent(form.responsabilite);
+  const indemnisationSharePercent = Math.max(0, 100 - responsibilityPercent);
   const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
     const rate = Number(form.garantieFranchiseTaux) || 0;
     const fixed = Number(form.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalTtcBrut;
     const franchise = Math.max(percentValue, fixed);
+    const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
     return {
       franchiseAmount: franchise,
-      recommendedIndemnisation: Math.max(0, netEvaluationTtc - franchise),
+      recommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, form.responsabilite),
     };
-  }, [totalTtcBrut, netEvaluationTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant]);
+  }, [totalTtcBrut, netEvaluationTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant, form.responsabilite]);
 
   const handleIndemnisationRecalc = () => {
     setForm((prev) => ({
@@ -729,13 +771,18 @@ const handleDamageCheckboxChange = (event) => {
   };
 
   const handleLaborRowChange = (category, field, value) => {
-    const numValue = Number(value);
     setLabors((prev) =>
       prev.map((entry) =>
         entry.category === category
           ? {
               ...entry,
-              [field]: Number.isNaN(numValue) ? 0 : numValue,
+              [field]:
+                field === 'withVat'
+                  ? Boolean(value)
+                  : (() => {
+                      const numValue = Number(value);
+                      return Number.isNaN(numValue) ? 0 : numValue;
+                    })(),
             }
           : entry
       )
@@ -760,6 +807,17 @@ const handleDamageCheckboxChange = (event) => {
     setLaborSuppliesTtc(rawValue);
   };
 
+  const buildLaborPayload = () => ({
+    entries: labors.map((entry) => ({
+      category: entry.category,
+      hours: entry.hours,
+      rate: entry.rate,
+      withVat: isVatEnabled(entry.withVat),
+    })),
+    suppliesHt: laborSuppliesHt,
+    suppliesTtc: laborSuppliesTtc,
+  });
+
   const handleLaborSave = async () => {
     if (!isEdit) {
       return;
@@ -767,16 +825,7 @@ const handleDamageCheckboxChange = (event) => {
     setLaborError('');
     setLaborSaving(true);
     try {
-      const payload = {
-        entries: labors.map((entry) => ({
-          category: entry.category,
-          hours: entry.hours,
-          rate: entry.rate,
-        })),
-        suppliesHt: laborSuppliesHt,
-        suppliesTtc: laborSuppliesTtc,
-      };
-      const response = await saveLabors(token, id, payload);
+      const response = await saveLabors(token, id, buildLaborPayload());
       setLabors(buildLaborEntries(response.entries || []));
       const updatedHt = response.totals?.suppliesHt || 0;
       const updatedTtc =
@@ -813,6 +862,9 @@ const handleDamageCheckboxChange = (event) => {
       vehiculeMarqueId: form.vehiculeMarqueId ? Number(form.vehiculeMarqueId) : null,
       garageId: form.garageId ? Number(form.garageId) : null,
       vehiculeAnnee: form.vehiculeAnnee || null,
+      vehiculeVuAvantTravaux: form.vehiculeVuAvantTravaux || null,
+      vehiculeVuEnCoursTravaux: form.vehiculeVuEnCoursTravaux || null,
+      vehiculeVuApresTravaux: form.vehiculeVuApresTravaux || null,
       agentId: form.agentId ? Number(form.agentId) : null,
       assureurAdverseId: form.assureurAdverseId ? Number(form.assureurAdverseId) : null,
       sinistrePoliceAdverse: form.sinistrePoliceAdverse || null,
@@ -843,6 +895,25 @@ const handleDamageCheckboxChange = (event) => {
       const response = isEdit
         ? await updateMission(token, id, payload)
         : await createMission(token, payload);
+      try {
+        const laborResponse = await saveLabors(token, response.id, buildLaborPayload());
+        setLabors(buildLaborEntries(laborResponse.entries || []));
+        setLaborSuppliesHt(laborResponse.totals?.suppliesHt || 0);
+        setLaborSuppliesTtc(
+          laborResponse.totals?.suppliesTtc !== undefined && laborResponse.totals?.suppliesTtc !== null
+            ? laborResponse.totals.suppliesTtc
+            : laborSuppliesTtc
+        );
+      } catch (laborErr) {
+        const laborMessage = laborErr.message || 'Mission enregistree, mais la remise en etat n a pas pu etre sauvegardee.';
+        if (isEdit) {
+          setError(laborMessage);
+          pushToast('error', laborMessage);
+          return;
+        }
+        navigate(`/missions/${response.id}/edit`);
+        return;
+      }
       pushToast('success', 'Mission enregistree.');
       navigate(`/missions/${response.id}`);
     } catch (err) {
@@ -951,7 +1022,7 @@ const handleDamageCheckboxChange = (event) => {
             helper={selectedInsurer ? `Contact : ${selectedInsurer.contact || '-'}` : ''}
           />
           <small className={`field-hint ${form.assureurId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-            {form.assureurId ? '✓ Assureur selectionne' : '⚠ Assureur requis'}
+            {form.assureurId ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Assureur selectionne' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Assureur requis'}
           </small>
           <label className="form-field">
             <span>Agence d'assurance</span>
@@ -1139,17 +1210,17 @@ const handleDamageCheckboxChange = (event) => {
           </fieldset>
         )}
 
-        {isEdit && (
         <fieldset className={`form-section-panel ${isSectionActive('remise') ? 'active' : ''}`}>
-          <legend>Évaluation de la remise en état</legend>
+          <legend>ÃƒÆ’Ã¢â‚¬Â°valuation de la remise en ÃƒÆ’Ã‚Â©tat</legend>
             {laborError && <div className="alert alert-error">{laborError}</div>}
             <div className="table-wrapper damage-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Main d'œuvre</th>
+                    <th>Main d'Ãƒâ€¦Ã¢â‚¬Å“uvre</th>
                     <th>Nombre d'heures</th>
                     <th>Taux horaire</th>
+                    <th>TVA</th>
                     <th>Hors taxe</th>
                     <th>T.V.A</th>
                     <th>Total TTC</th>
@@ -1158,7 +1229,7 @@ const handleDamageCheckboxChange = (event) => {
                 <tbody>
                   {labors.map((labor) => {
                     const ht = labor.hours * labor.rate;
-                    const tva = ht * 0.2;
+                    const tva = isVatEnabled(labor.withVat) ? ht * 0.2 : 0;
                     const ttc = ht + tva;
                     return (
                       <tr key={labor.category}>
@@ -1181,6 +1252,15 @@ const handleDamageCheckboxChange = (event) => {
                             onChange={(event) => handleLaborRowChange(labor.category, 'rate', event.target.value)}
                           />
                         </td>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={isVatEnabled(labor.withVat)}
+                            onChange={(event) =>
+                              handleLaborRowChange(labor.category, 'withVat', event.target.checked)
+                            }
+                          />
+                        </td>
                         <td>{ht.toFixed(2)} MAD</td>
                         <td>{tva.toFixed(2)} MAD</td>
                         <td>{ttc.toFixed(2)} MAD</td>
@@ -1189,6 +1269,7 @@ const handleDamageCheckboxChange = (event) => {
                   })}
                   <tr>
                     <td>Fournitures</td>
+                    <td>-</td>
                     <td>-</td>
                     <td>-</td>
                     <td>
@@ -1214,17 +1295,19 @@ const handleDamageCheckboxChange = (event) => {
                 </tbody>
               </table>
             </div>
-            <div className="form-actions">
-              <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
-                Enregistrer la main d'œuvre
-              </button>
-            </div>
+            {isEdit && (
+              <div className="form-actions">
+                <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
+                  Enregistrer la main d'Ãƒâ€¦Ã¢â‚¬Å“uvre
+                </button>
+              </div>
+            )}
             <div className="damage-totals">
               <div>
-                <strong>Total main d'œuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+                <strong>Total main d'Ãƒâ€¦Ã¢â‚¬Å“uvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Total main d'œuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+                <strong>Total main d'Ãƒâ€¦Ã¢â‚¬Å“uvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
@@ -1236,14 +1319,14 @@ const handleDamageCheckboxChange = (event) => {
                 <strong>Montant total TTC (brut) :</strong> {totalTtcBrut.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Montant TTC après vétusté :</strong> {netEvaluationTtc.toFixed(2)} MAD
+                <strong>Montant TTC aprÃƒÆ’Ã‚Â¨s vÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© :</strong> {netEvaluationTtc.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Vétusté TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
+                <strong>VÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
               </div>
               {showFranchiseFields && (
                 <div>
-                  <strong>Franchise calculé :</strong> {franchiseAmount.toFixed(2)} MAD
+                  <strong>Franchise calculÃƒÆ’Ã‚Â© :</strong> {franchiseAmount.toFixed(2)} MAD
                 </div>
               )}
               <div className="form-field">
@@ -1262,8 +1345,9 @@ const handleDamageCheckboxChange = (event) => {
                   </button>
                 </div>
                 <small className="muted">
-                  Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vétusté {damageVetusteLoss.toFixed(2)} MAD)
-                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculée sur TTC brut)
+                  Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© {damageVetusteLoss.toFixed(2)} MAD)
+                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculÃ©e sur TTC brut), puis x{' '}
+                  {indemnisationSharePercent.toFixed(0)}% selon la responsabilitÃ©
                 </small>
             </div>
           </div>
@@ -1367,7 +1451,7 @@ const handleDamageCheckboxChange = (event) => {
         <fieldset className="form-field-full">
           <legend>Synthese</legend>
           <label className="form-field form-field-full">
-            <span>Résumé / Synthèse de mission</span>
+            <span>RÃƒÆ’Ã‚Â©sumÃƒÆ’Ã‚Â© / SynthÃƒÆ’Ã‚Â¨se de mission</span>
             <textarea
               name="synthese"
               rows={4}
@@ -1378,7 +1462,6 @@ const handleDamageCheckboxChange = (event) => {
           </label>
         </fieldset>
       </fieldset>
-    )}
 
 	        <fieldset className={`form-section-panel ${isSectionActive('vehicule') ? 'active' : ''}`}>
           <legend>Vehicule</legend>
@@ -1404,7 +1487,7 @@ const handleDamageCheckboxChange = (event) => {
               ))}
             </select>
             <small className={`field-hint ${form.vehiculeMarqueId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-              {form.vehiculeMarqueId ? '✓ Marque selectionnee' : '⚠ Marque requise'}
+              {form.vehiculeMarqueId ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Marque selectionnee' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Marque requise'}
             </small>
           </label>
           <label className="form-field">
@@ -1461,6 +1544,38 @@ const handleDamageCheckboxChange = (event) => {
               ))}
             </select>
           </label>
+          <div className="form-field form-field-full vehicle-view-group">
+            <span>V\u00e9hicule vu</span>
+            <div className="vehicle-view-grid">
+              <label className="form-field">
+                <span>Avant travaux</span>
+                <input
+                  name="vehiculeVuAvantTravaux"
+                  type="date"
+                  value={form.vehiculeVuAvantTravaux || ''}
+                  onChange={handleChange}
+                />
+              </label>
+              <label className="form-field">
+                <span>En cours de travaux</span>
+                <input
+                  name="vehiculeVuEnCoursTravaux"
+                  type="date"
+                  value={form.vehiculeVuEnCoursTravaux || ''}
+                  onChange={handleChange}
+                />
+              </label>
+              <label className="form-field">
+                <span>Apr\u00e8s travaux</span>
+                <input
+                  name="vehiculeVuApresTravaux"
+                  type="date"
+                  value={form.vehiculeVuApresTravaux || ''}
+                  onChange={handleChange}
+                />
+              </label>
+            </div>
+          </div>
         </fieldset>
 
 	        <fieldset className={`form-section-panel ${isSectionActive('assure') ? 'active' : ''}`}>
@@ -1469,7 +1584,7 @@ const handleDamageCheckboxChange = (event) => {
             <span>Nom</span>
             <input name="assureNom" value={form.assureNom} onChange={handleChange} required />
             <small className={`field-hint ${form.assureNom ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-              {form.assureNom ? '✓ Nom renseigne' : '⚠ Nom requis'}
+              {form.assureNom ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Nom renseigne' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Nom requis'}
             </small>
           </label>
           <label className="form-field">
@@ -1638,6 +1753,8 @@ const handleDamageCheckboxChange = (event) => {
 };
 
 export default MissionFormPage;
+
+
 
 
 
