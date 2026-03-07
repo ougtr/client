@@ -1022,7 +1022,7 @@ const handleDamageCheckboxChange = (event) => {
             helper={selectedInsurer ? `Contact : ${selectedInsurer.contact || '-'}` : ''}
           />
           <small className={`field-hint ${form.assureurId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-            {form.assureurId ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Assureur selectionne' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Assureur requis'}
+            {form.assureurId ? 'Assureur selectionne' : 'Assureur requis'}
           </small>
           <label className="form-field">
             <span>Agence d'assurance</span>
@@ -1211,13 +1211,13 @@ const handleDamageCheckboxChange = (event) => {
         )}
 
         <fieldset className={`form-section-panel ${isSectionActive('remise') ? 'active' : ''}`}>
-          <legend>ÃƒÆ’Ã¢â‚¬Â°valuation de la remise en ÃƒÆ’Ã‚Â©tat</legend>
+          <legend>Evaluation de la remise en etat</legend>
             {laborError && <div className="alert alert-error">{laborError}</div>}
             <div className="table-wrapper damage-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Main d'Ãƒâ€¦Ã¢â‚¬Å“uvre</th>
+                    <th>Main d'oeuvre</th>
                     <th>Nombre d'heures</th>
                     <th>Taux horaire</th>
                     <th>TVA</th>
@@ -1298,16 +1298,16 @@ const handleDamageCheckboxChange = (event) => {
             {isEdit && (
               <div className="form-actions">
                 <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
-                  Enregistrer la main d'Ãƒâ€¦Ã¢â‚¬Å“uvre
+                  Enregistrer la main d'oeuvre
                 </button>
               </div>
             )}
             <div className="damage-totals">
               <div>
-                <strong>Total main d'Ãƒâ€¦Ã¢â‚¬Å“uvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
+                <strong>Total main d'oeuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Total main d'Ãƒâ€¦Ã¢â‚¬Å“uvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
+                <strong>Total main d'oeuvre TTC :</strong> {laborTotals.totalTtc.toFixed(2)} MAD
               </div>
               <div>
                 <strong>Fournitures HT :</strong> {laborTotals.suppliesHt.toFixed(2)} MAD
@@ -1319,14 +1319,14 @@ const handleDamageCheckboxChange = (event) => {
                 <strong>Montant total TTC (brut) :</strong> {totalTtcBrut.toFixed(2)} MAD
               </div>
               <div>
-                <strong>Montant TTC aprÃƒÆ’Ã‚Â¨s vÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© :</strong> {netEvaluationTtc.toFixed(2)} MAD
+                <strong>Montant TTC apres vetuste :</strong> {netEvaluationTtc.toFixed(2)} MAD
               </div>
               <div>
-                <strong>VÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
+                <strong>Vetuste TTC :</strong> {damageVetusteLoss.toFixed(2)} MAD
               </div>
               {showFranchiseFields && (
                 <div>
-                  <strong>Franchise calculÃƒÆ’Ã‚Â© :</strong> {franchiseAmount.toFixed(2)} MAD
+                  <strong>Franchise calcule :</strong> {franchiseAmount.toFixed(2)} MAD
                 </div>
               )}
               <div className="form-field">
@@ -1345,9 +1345,9 @@ const handleDamageCheckboxChange = (event) => {
                   </button>
                 </div>
                 <small className="muted">
-                  Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vÃƒÆ’Ã‚Â©tustÃƒÆ’Ã‚Â© {damageVetusteLoss.toFixed(2)} MAD)
-                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculÃ©e sur TTC brut), puis x{' '}
-                  {indemnisationSharePercent.toFixed(0)}% selon la responsabilitÃ©
+                  Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vetuste {damageVetusteLoss.toFixed(2)} MAD)
+                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculee sur TTC brut), puis x{' '}
+                  {indemnisationSharePercent.toFixed(0)}% selon la responsabilite
                 </small>
             </div>
           </div>
@@ -1451,7 +1451,7 @@ const handleDamageCheckboxChange = (event) => {
         <fieldset className="form-field-full">
           <legend>Synthese</legend>
           <label className="form-field form-field-full">
-            <span>RÃƒÆ’Ã‚Â©sumÃƒÆ’Ã‚Â© / SynthÃƒÆ’Ã‚Â¨se de mission</span>
+            <span>Resume / Synthese de mission</span>
             <textarea
               name="synthese"
               rows={4}
@@ -1487,7 +1487,7 @@ const handleDamageCheckboxChange = (event) => {
               ))}
             </select>
             <small className={`field-hint ${form.vehiculeMarqueId ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-              {form.vehiculeMarqueId ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Marque selectionnee' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Marque requise'}
+              {form.vehiculeMarqueId ? 'Marque selectionnee' : 'Marque requise'}
             </small>
           </label>
           <label className="form-field">
@@ -1584,7 +1584,7 @@ const handleDamageCheckboxChange = (event) => {
             <span>Nom</span>
             <input name="assureNom" value={form.assureNom} onChange={handleChange} required />
             <small className={`field-hint ${form.assureNom ? 'field-hint-valid' : 'field-hint-invalid'}`}>
-              {form.assureNom ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Nom renseigne' : 'ÃƒÂ¢Ã…Â¡Ã‚Â  Nom requis'}
+              {form.assureNom ? 'Nom renseigne' : 'Nom requis'}
             </small>
           </label>
           <label className="form-field">
