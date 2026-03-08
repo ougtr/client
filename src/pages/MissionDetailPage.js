@@ -194,6 +194,8 @@ const DEFAULT_LABOR_TOTALS = {
   grandTotalTtc: 0,
 };
 
+const PHOTO_LABEL_PLACEHOLDER = '-';
+
 const MissionDetailPage = () => {
   const { token, isManager, isAgent, user } = useAuth();
   const navigate = useNavigate();
@@ -204,7 +206,7 @@ const MissionDetailPage = () => {
   const [documents, setDocuments] = useState([]);
   const [availableLabels, setAvailableLabels] = useState(PHOTO_LABELS);
   const [labelSearch, setLabelSearch] = useState('');
-  const [photoLabel, setPhotoLabel] = useState(PHOTO_LABELS[0] || '');
+  const [photoLabel, setPhotoLabel] = useState('');
   const [uploadPhase, setUploadPhase] = useState('avant');
 
   const [loading, setLoading] = useState(true);
@@ -263,10 +265,7 @@ const MissionDetailPage = () => {
   }, [availableLabels, labelSearch]);
 
   useEffect(() => {
-    if (filteredLabels.length === 0) {
-      return;
-    }
-    setPhotoLabel((current) => (filteredLabels.includes(current) ? current : filteredLabels[0]));
+    setPhotoLabel((current) => (current && filteredLabels.includes(current) ? current : ''));
   }, [filteredLabels]);
 
   const fetchMission = async () => {
@@ -352,7 +351,7 @@ const MissionDetailPage = () => {
       return;
     }
 
-    if (!availableLabels.includes(photoLabel)) {
+    if (!photoLabel || !availableLabels.includes(photoLabel)) {
       setPhotoActionError('Veuillez choisir un libelle valide');
       return;
     }
@@ -368,7 +367,7 @@ const MissionDetailPage = () => {
       event.target.reset();
       setUploadPhase('avant');
       setLabelSearch('');
-      setPhotoLabel(availableLabels[0] || '');
+      setPhotoLabel('');
       pushToast('success', 'Photos importees.');
     } catch (err) {
       setPhotoActionError(err.message || 'Echec de lenvoi');
@@ -463,7 +462,7 @@ const MissionDetailPage = () => {
     }
   };
 
-  const canSubmitUpload = filteredLabels.length > 0 && !uploading;
+  const canSubmitUpload = Boolean(photoLabel) && availableLabels.includes(photoLabel) && !uploading;
 
   const photosAvant = useMemo(
     () => photos.filter((photo) => (photo.phase || 'avant') === 'avant'),
@@ -843,6 +842,7 @@ const MissionDetailPage = () => {
                   onChange={(event) => setPhotoLabel(event.target.value)}
                   required
                 >
+                  <option value="">{PHOTO_LABEL_PLACEHOLDER}</option>
                   {filteredLabels.length > 0 ? (
                     filteredLabels.map((labelOption) => (
                       <option key={labelOption} value={labelOption}>
