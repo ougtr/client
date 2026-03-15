@@ -52,6 +52,15 @@ const applyResponsibilityShare = (amount, responsibilityValue) => {
   return Math.max(0, baseAmount * indemnisationShare);
 };
 
+const parseMoneyInput = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+  const normalized = String(value).replace(/\s+/g, '').replace(',', '.').trim();
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+};
+
 const formatCirculationDate = (value) => {
   if (!value) {
     return null;
@@ -195,6 +204,11 @@ const DEFAULT_LABOR_TOTALS = {
 };
 
 const PHOTO_LABEL_PLACEHOLDER = '-';
+const DEFAULT_HONORAIRES_FORM = {
+  honoraires: '',
+  photos: '0',
+  deplacement: '0',
+};
 
 const MissionDetailPage = () => {
   const { token, isManager, isAgent, user } = useAuth();
@@ -218,11 +232,15 @@ const MissionDetailPage = () => {
   const [uploading, setUploading] = useState(false);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingHonoraires, setExportingHonoraires] = useState(false);
   const [damages, setDamages] = useState([]);
   const [damageTotals, setDamageTotals] = useState(DEFAULT_DAMAGE_TOTALS);
   const [labors, setLabors] = useState([]);
   const [laborTotals, setLaborTotals] = useState(DEFAULT_LABOR_TOTALS);
   const [toasts, setToasts] = useState([]);
+  const [honorairesDialogOpen, setHonorairesDialogOpen] = useState(false);
+  const [honorairesForm, setHonorairesForm] = useState(DEFAULT_HONORAIRES_FORM);
+  const [honorairesFormError, setHonorairesFormError] = useState('');
 
   const pushToast = (type, message) => {
     const toastId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -263,6 +281,23 @@ const MissionDetailPage = () => {
     }
     return availableLabels.filter((label) => label.toLowerCase().includes(query));
   }, [availableLabels, labelSearch]);
+
+  const honorairesPreview = useMemo(() => {
+    const honoraires = parseMoneyInput(honorairesForm.honoraires);
+    const photos = parseMoneyInput(honorairesForm.photos);
+    const deplacement = parseMoneyInput(honorairesForm.deplacement);
+    const sanitizedHonoraires = Number.isFinite(honoraires) && honoraires >= 0 ? honoraires : 0;
+    const sanitizedPhotos = Number.isFinite(photos) && photos >= 0 ? photos : 0;
+    const sanitizedDeplacement = Number.isFinite(deplacement) && deplacement >= 0 ? deplacement : 0;
+    const taxe = sanitizedHonoraires * 0.2;
+    return {
+      honoraires,
+      photos,
+      deplacement,
+      taxe,
+      total: sanitizedHonoraires + taxe + sanitizedPhotos + sanitizedDeplacement,
+    };
+  }, [honorairesForm]);
 
   useEffect(() => {
     setPhotoLabel((current) => (current && filteredLabels.includes(current) ? current : ''));
@@ -429,37 +464,106 @@ const MissionDetailPage = () => {
     }
   };
 
-  const handleExportReport = async () => {
+  const downloadMissionPdf = async (
+    endpoint,
+    filename,
+    setLoadingState,
+    successMessage,
+    errorMessage,
+    queryParams = null
+  ) => {
     if (!id) {
       return;
     }
     setError('');
-    setExporting(true);
+    setLoadingState(true);
     try {
-      const response = await fetch(`${API_URL}/missions/${id}/report`, {
+      const queryString = queryParams ? `?${new URLSearchParams(queryParams).toString()}` : '';
+      const response = await fetch(`${API_URL}/missions/${id}/${endpoint}${queryString}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       if (!response.ok) {
-        throw new Error('Export impossible');
+        throw new Error(errorMessage);
       }
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `rapport-mission-${id}.pdf`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
-      pushToast('success', 'Export PDF termine.');
+      pushToast('success', successMessage);
     } catch (err) {
-      setError(err.message || 'Export impossible');
-      pushToast('error', err.message || 'Export impossible');
+      setError(err.message || errorMessage);
+      pushToast('error', err.message || errorMessage);
     } finally {
-      setExporting(false);
+      setLoadingState(false);
     }
+  };
+
+  const handleExportReport = async () =>
+    downloadMissionPdf('report', `rapport-mission-${id}.pdf`, setExporting, 'Export PDF termine.', 'Export impossible');
+
+  const openHonorairesDialog = () => {
+    setHonorairesFormError('');
+    setHonorairesDialogOpen(true);
+  };
+
+  const closeHonorairesDialog = () => {
+    if (exportingHonoraires) {
+      return;
+    }
+    setHonorairesDialogOpen(false);
+    setHonorairesFormError('');
+  };
+
+  const handleHonorairesFieldChange = (field) => (event) => {
+    setHonorairesForm((prev) => ({
+      ...prev,
+      [field]: event.target.value,
+    }));
+    if (honorairesFormError) {
+      setHonorairesFormError('');
+    }
+  };
+
+  const handleExportHonoraires = async (event) => {
+    if (event) {
+      event.preventDefault();
+    }
+    const values = {
+      honoraires: parseMoneyInput(honorairesForm.honoraires),
+      photos: parseMoneyInput(honorairesForm.photos),
+      deplacement: parseMoneyInput(honorairesForm.deplacement),
+    };
+    if (
+      !Number.isFinite(values.honoraires) ||
+      values.honoraires < 0 ||
+      !Number.isFinite(values.photos) ||
+      values.photos < 0 ||
+      !Number.isFinite(values.deplacement) ||
+      values.deplacement < 0
+    ) {
+      setHonorairesFormError('Veuillez saisir des montants valides superieurs ou egaux a 0.');
+      return;
+    }
+    setHonorairesDialogOpen(false);
+    await downloadMissionPdf(
+      'honoraires-report',
+      `note-honoraires-mission-${id}.pdf`,
+      setExportingHonoraires,
+      "Export note d'honoraires termine.",
+      "Export note d'honoraires impossible",
+      {
+        honoraires: values.honoraires.toFixed(2),
+        photos: values.photos.toFixed(2),
+        deplacement: values.deplacement.toFixed(2),
+      }
+    );
   };
 
   const canSubmitUpload = Boolean(photoLabel) && availableLabels.includes(photoLabel) && !uploading;
@@ -540,7 +644,15 @@ const MissionDetailPage = () => {
             onClick={handleExportReport}
             disabled={exporting}
           >
-            {exporting ? 'Export...' : 'Export PDF'}
+            {exporting ? 'Export...' : "Rapport d'expertise"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={openHonorairesDialog}
+            disabled={exportingHonoraires}
+          >
+            {exportingHonoraires ? 'Export...' : 'Note honoraires'}
           </button>
           {isManager && (
             <button type="button" className="btn btn-primary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
@@ -928,13 +1040,86 @@ const MissionDetailPage = () => {
           onDelete={canManageAttachments ? handleDeleteDocument : undefined}
         />
       </section>
-      <div className="floating-action-spacer" />
-      <div className="floating-action-bar">
+      {honorairesDialogOpen && (
+        <div className="photo-modal honoraires-modal" role="dialog" aria-modal="true" aria-labelledby="honoraires-dialog-title">
+          <div className="photo-modal-content honoraires-modal-content" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="photo-modal-close" onClick={closeHonorairesDialog} disabled={exportingHonoraires}>
+              Fermer
+            </button>
+            <div className="honoraires-modal-header">
+              <h2 id="honoraires-dialog-title">Note d&apos;honoraires</h2>
+              <p>Saisissez les montants a injecter dans le PDF. La taxe est calculee automatiquement a 20%.</p>
+            </div>
+            {honorairesFormError && <div className="alert alert-error">{honorairesFormError}</div>}
+            <form className="honoraires-modal-form" onSubmit={handleExportHonoraires}>
+              <div className="honoraires-modal-grid">
+                <label className="form-field">
+                  <span>Honoraires HT</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={honorairesForm.honoraires}
+                    onChange={handleHonorairesFieldChange('honoraires')}
+                    placeholder="Ex : 600"
+                    autoFocus
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Photos</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={honorairesForm.photos}
+                    onChange={handleHonorairesFieldChange('photos')}
+                    placeholder="0"
+                  />
+                </label>
+                <label className="form-field">
+                  <span>Deplacement</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={honorairesForm.deplacement}
+                    onChange={handleHonorairesFieldChange('deplacement')}
+                    placeholder="0"
+                  />
+                </label>
+              </div>
+              <div className="damage-totals honoraires-preview-grid">
+                <div>
+                  <strong>Taxe (20%) :</strong> {honorairesPreview.taxe.toFixed(2)} MAD
+                </div>
+                <div>
+                  <strong>Total :</strong> {honorairesPreview.total.toFixed(2)} MAD
+                </div>
+              </div>
+              <div className="honoraires-modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={closeHonorairesDialog} disabled={exportingHonoraires}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={exportingHonoraires}>
+                  {exportingHonoraires ? 'Export...' : 'Generer le PDF'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      <div className="floating-action-spacer mission-detail-action-spacer" />
+      <div className="floating-action-bar mission-detail-action-bar">
         <button type="button" className="btn btn-outline" onClick={() => navigate('/missions')}>
           Retour
         </button>
         <button type="button" className="btn btn-primary" onClick={handleExportReport} disabled={exporting}>
-          {exporting ? 'Export...' : 'Export PDF'}
+          {exporting ? 'Export...' : 'Rapport'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={openHonorairesDialog}
+          disabled={exportingHonoraires}
+        >
+          {exportingHonoraires ? 'Export...' : 'Honoraires'}
         </button>
         {isManager && (
           <button type="button" className="btn btn-secondary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
