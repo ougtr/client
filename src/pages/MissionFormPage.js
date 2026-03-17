@@ -168,6 +168,7 @@ const ENERGY_OPTIONS = [
 
 const GUARANTEE_OPTIONS = [
   { value: 'dommage collision', label: 'Dommage collision' },
+  { value: 'bris de glace', label: 'Bris de glace' },
   { value: 'tierce', label: 'Tierce' },
   { value: 'rc', label: 'RC' },
 ];
@@ -184,6 +185,13 @@ const guaranteeRequiresFranchise = (value) => {
   }
   const normalized = String(value).trim().toLowerCase();
   return normalized === 'dommage collision' || normalized === 'tierce';
+};
+
+const isTierceGuarantee = (value) => {
+  if (!value) {
+    return false;
+  }
+  return String(value).trim().toLowerCase() === 'tierce';
 };
 
 const REFORME_OPTIONS = [
@@ -592,7 +600,8 @@ const MissionFormPage = ({ mode }) => {
   const totalTtcBrut = Math.max(0, laborTotals.grandTotalTtc || 0);
   const netEvaluationTtc = Math.max(0, totalTtcBrut - damageVetusteLoss);
   const responsibilityPercent = parseResponsibilityPercent(form.responsabilite);
-  const indemnisationSharePercent = Math.max(0, 100 - responsibilityPercent);
+  const responsibilityApplies = !isTierceGuarantee(form.garantieType);
+  const indemnisationSharePercent = responsibilityApplies ? Math.max(0, 100 - responsibilityPercent) : 100;
   const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
     const rate = Number(form.garantieFranchiseTaux) || 0;
     const fixed = Number(form.garantieFranchiseMontant) || 0;
@@ -601,9 +610,18 @@ const MissionFormPage = ({ mode }) => {
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
     return {
       franchiseAmount: franchise,
-      recommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, form.responsabilite),
+      recommendedIndemnisation: isTierceGuarantee(form.garantieType)
+        ? amountAfterFranchise
+        : applyResponsibilityShare(amountAfterFranchise, form.responsabilite),
     };
-  }, [totalTtcBrut, netEvaluationTtc, form.garantieFranchiseTaux, form.garantieFranchiseMontant, form.responsabilite]);
+  }, [
+    totalTtcBrut,
+    netEvaluationTtc,
+    form.garantieFranchiseTaux,
+    form.garantieFranchiseMontant,
+    form.garantieType,
+    form.responsabilite,
+  ]);
 
   const handleIndemnisationRecalc = () => {
     setForm((prev) => ({
@@ -1347,7 +1365,8 @@ const handleDamageCheckboxChange = (event) => {
                 <small className="muted">
                   Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vetuste {damageVetusteLoss.toFixed(2)} MAD)
                   - Franchise ({franchiseAmount.toFixed(2)} MAD, calculee sur TTC brut), puis x{' '}
-                  {indemnisationSharePercent.toFixed(0)}% selon la responsabilite
+                  {indemnisationSharePercent.toFixed(0)}%
+                  {responsibilityApplies ? ' selon la responsabilite' : ' (responsabilite ignoree pour garantie tierce)'}
                 </small>
             </div>
           </div>
