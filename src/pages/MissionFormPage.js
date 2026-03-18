@@ -184,14 +184,15 @@ const guaranteeRequiresFranchise = (value) => {
     return false;
   }
   const normalized = String(value).trim().toLowerCase();
-  return normalized === 'dommage collision' || normalized === 'tierce';
+  return normalized === 'dommage collision' || normalized === 'tierce' || normalized === 'bris de glace';
 };
 
 const isTierceGuarantee = (value) => {
   if (!value) {
     return false;
   }
-  return String(value).trim().toLowerCase() === 'tierce';
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'tierce' || normalized === 'bris de glace';
 };
 
 const REFORME_OPTIONS = [
@@ -1366,7 +1367,9 @@ const handleDamageCheckboxChange = (event) => {
                   Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vetuste {damageVetusteLoss.toFixed(2)} MAD)
                   - Franchise ({franchiseAmount.toFixed(2)} MAD, calculee sur TTC brut), puis x{' '}
                   {indemnisationSharePercent.toFixed(0)}%
-                  {responsibilityApplies ? ' selon la responsabilite' : ' (responsabilite ignoree pour garantie tierce)'}
+                  {responsibilityApplies
+                    ? ' selon la responsabilite'
+                    : ' (responsabilite ignoree pour garantie tierce/bris de glace)'}
                 </small>
             </div>
           </div>
