@@ -192,7 +192,7 @@ const isTierceGuarantee = (value) => {
     return false;
   }
   const normalized = String(value).trim().toLowerCase();
-  return normalized === 'tierce' || normalized === 'bris de glace';
+  return normalized === 'tierce' || normalized === 'bris de glace' || normalized === 'dommage collision';
 };
 
 const REFORME_OPTIONS = [
@@ -1369,7 +1369,7 @@ const handleDamageCheckboxChange = (event) => {
                   {indemnisationSharePercent.toFixed(0)}%
                   {responsibilityApplies
                     ? ' selon la responsabilite'
-                    : ' (responsabilite ignoree pour garantie tierce/bris de glace)'}
+                    : ' (responsabilite ignoree pour garantie dommage collision/tierce/bris de glace)'}
                 </small>
             </div>
           </div>
