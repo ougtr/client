@@ -1,4 +1,4 @@
-import { request } from './http';
+import { API_URL, request } from './http';
 
 const buildQueryString = (filters = {}) => {
   const params = new URLSearchParams();
@@ -66,3 +66,40 @@ export const deleteMissionDocument = (token, missionId, documentId) =>
 
 export const deleteMission = (token, id) =>
   request(`/missions/${id}`, { method: 'DELETE', token });
+
+export const downloadMissionPdfBlob = async (
+  token,
+  id,
+  endpoint,
+  { method = 'GET', body = null, queryParams = null } = {}
+) => {
+  const queryString = queryParams ? `?${new URLSearchParams(queryParams).toString()}` : '';
+  const response = await fetch(`${API_URL}/missions/${id}/${endpoint}${queryString}`, {
+    method,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      Authorization: `Bearer ${token}`,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let message = 'Erreur serveur';
+
+    try {
+      const parsed = JSON.parse(errorText);
+      message = parsed.message || message;
+    } catch (error) {
+      if (errorText) {
+        message = errorText;
+      }
+    }
+
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response.blob();
+};

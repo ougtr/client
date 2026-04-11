@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../context/AuthContext';
-import { API_URL } from '../api/http';
 import {
   getMission,
   updateMissionStatus,
@@ -10,6 +9,7 @@ import {
   deleteMissionPhoto,
   uploadMissionDocuments,
   deleteMissionDocument,
+  downloadMissionPdfBlob,
 } from '../api/missions';
 import PhotoGallery from '../components/PhotoGallery';
 import DocumentList from '../components/DocumentList';
@@ -309,29 +309,37 @@ const MissionDetailPage = () => {
     };
   }, [honorairesForm]);
 
+  const applyMissionResponse = (data) => {
+    setMission(data.mission);
+    setPhotos(data.photos || []);
+    setDocuments(data.documents || []);
+    setDamages(data.damages || []);
+    setDamageTotals(data.damageTotals || DEFAULT_DAMAGE_TOTALS);
+    setLabors(data.labors || []);
+    setLaborTotals(data.laborTotals || DEFAULT_LABOR_TOTALS);
+    if (Array.isArray(data.photoLabels) && data.photoLabels.length) {
+      setAvailableLabels(data.photoLabels);
+    }
+  };
+
   useEffect(() => {
     setPhotoLabel((current) => (current && filteredLabels.includes(current) ? current : ''));
   }, [filteredLabels]);
 
-  const fetchMission = async () => {
-    setLoading(true);
+  const fetchMission = async ({ showLoading = true } = {}) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError('');
     try {
       const data = await getMission(token, id);
-      setMission(data.mission);
-      setPhotos(data.photos || []);
-      setDocuments(data.documents || []);
-      setDamages(data.damages || []);
-      setDamageTotals(data.damageTotals || DEFAULT_DAMAGE_TOTALS);
-      setLabors(data.labors || []);
-      setLaborTotals(data.laborTotals || DEFAULT_LABOR_TOTALS);
-      if (Array.isArray(data.photoLabels) && data.photoLabels.length) {
-        setAvailableLabels(data.photoLabels);
-      }
+      applyMissionResponse(data);
     } catch (err) {
       setError(err.message || 'Impossible de charger la mission');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -488,16 +496,7 @@ const MissionDetailPage = () => {
     setError('');
     setLoadingState(true);
     try {
-      const queryString = queryParams ? `?${new URLSearchParams(queryParams).toString()}` : '';
-      const response = await fetch(`${API_URL}/missions/${id}/${endpoint}${queryString}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error(errorMessage);
-      }
-      const blob = await response.blob();
+      const blob = await downloadMissionPdfBlob(token, id, endpoint, { queryParams });
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -506,6 +505,7 @@ const MissionDetailPage = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
+      await fetchMission({ showLoading: false });
       pushToast('success', successMessage);
     } catch (err) {
       setError(err.message || errorMessage);
@@ -663,6 +663,20 @@ const MissionDetailPage = () => {
             disabled={exportingHonoraires}
           >
             {exportingHonoraires ? 'Export...' : 'Note honoraires'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => navigate(`/missions/${mission.id}/preliminary-report-preview`)}
+          >
+            Rapport préliminaire
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => navigate(`/missions/${mission.id}/damage-notice-preview`)}
+          >
+            Avis dommages
           </button>
           {isManager && (
             <button type="button" className="btn btn-primary" onClick={() => navigate(`/missions/${mission.id}/edit`)}>
@@ -1122,6 +1136,20 @@ const MissionDetailPage = () => {
         </button>
         <button type="button" className="btn btn-primary" onClick={handleExportReport} disabled={exporting}>
           {exporting ? 'Export...' : 'Rapport'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => navigate(`/missions/${mission.id}/preliminary-report-preview`)}
+        >
+          Préliminaire
+        </button>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => navigate(`/missions/${mission.id}/damage-notice-preview`)}
+        >
+          Avis
         </button>
         <button
           type="button"
