@@ -1714,6 +1714,11 @@ legend::before {
 
 .preliminary-title-box {
   border: 1px solid #111827;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
   text-align: center;
   font-weight: 700;
   font-size: 1.15rem;
@@ -1932,7 +1937,8 @@ legend::before {
 }
 
 .preview-inline-input,
-.preview-inline-textarea {
+.preview-inline-textarea,
+.preview-inline-select {
   width: 100%;
   border: 1px dashed #94a3b8;
   background: #fffef7;
@@ -1943,10 +1949,15 @@ legend::before {
 }
 
 .preview-inline-input:focus,
-.preview-inline-textarea:focus {
+.preview-inline-textarea:focus,
+.preview-inline-select:focus {
   outline: none;
   border-color: #0f172a;
   background: #ffffff;
+}
+
+.preview-inline-select {
+  appearance: none;
 }
 
 .preview-inline-textarea {
@@ -1965,6 +1976,15 @@ legend::before {
 
 .preview-inline-input.w-md {
   max-width: 230px;
+}
+
+.preview-title-select {
+  width: auto;
+  min-width: 180px;
+  max-width: 220px;
+  font-weight: 700;
+  text-align: center;
+  text-align-last: center;
 }
 
 .preliminary-observations {

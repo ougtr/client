@@ -12,6 +12,11 @@ const ENERGY_LABELS = {
   hybride: 'HYBRIDE',
 };
 
+const REPORT_TITLE_MODES = ['Contradictoire', 'Collégiale'];
+
+const normalizeReportTitleMode = (value) =>
+  REPORT_TITLE_MODES.includes(value) ? value : REPORT_TITLE_MODES[0];
+
 const formatDate = (value) => {
   if (!value) {
     return '';
@@ -77,6 +82,7 @@ const buildInitialForm = (data) => {
     valeurVenale || valeurEpave ? formatAmount(Math.max(0, valeurVenale - valeurEpave)) : '';
 
   return {
+    reportTitleMode: normalizeReportTitleMode(data?.reportTitleMode),
     reference: mission.missionCode || `M-${mission.id || ''}`,
     issueDate: formatDate(mission.sinistreDate),
     insuredName: mission.assureNom || '',
@@ -161,6 +167,17 @@ const InlineTextarea = ({ value, onChange, className = '', ...props }) => (
     onChange={onChange}
     {...props}
   />
+);
+
+const InlineSelect = ({ value, onChange, className = '', children, ...props }) => (
+  <select
+    className={`preview-inline-select ${className}`.trim()}
+    value={value}
+    onChange={onChange}
+    {...props}
+  >
+    {children}
+  </select>
 );
 
 const CheckboxLine = ({ checked, label, onToggle }) => (
@@ -338,7 +355,18 @@ const PreliminaryContradictoirePreviewPage = () => {
         <div className="preliminary-paper-stack">
           <div className="preliminary-paper">
             <div className="preliminary-title-box">
-              Annexe 4 : Rapport d&apos;expertise préliminaire - Contradictoire
+              <span>Annexe 4 : Rapport d&apos;expertise préliminaire -</span>
+              <InlineSelect
+                value={form.reportTitleMode}
+                onChange={updateField('reportTitleMode')}
+                className="preview-title-select"
+              >
+                {REPORT_TITLE_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </InlineSelect>
             </div>
 
             <div className="preliminary-top-table">
