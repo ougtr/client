@@ -39,6 +39,27 @@
   cursor: not-allowed;
 }
 
+.btn-excel {
+  border: 1px solid #185c37;
+  background: linear-gradient(135deg, #217346, #185c37);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(33, 115, 70, 0.22);
+}
+
+.btn-excel:hover:not(:disabled) {
+  border-color: #107c41;
+  background: linear-gradient(135deg, #107c41, #185c37);
+  box-shadow: 0 14px 28px rgba(33, 115, 70, 0.3);
+}
+
+.btn-excel:disabled {
+  border-color: #86a995;
+  background: #86a995;
+  color: #f0fdf4;
+  box-shadow: none;
+  cursor: wait;
+}
+
 .btn-secondary {
   background-color: #e2e8f0;
   color: #1f2933;
@@ -1004,6 +1025,88 @@ legend::before {
   border: 1px solid rgba(203, 213, 245, 0.7);
   border-radius: 0.95rem;
   padding: 0.85rem 1rem;
+}
+
+.mission-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.reglement-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 38px;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.reglement-toggle:hover:not(:disabled) {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.reglement-toggle.is-checked {
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.reglement-toggle:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.reglement-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.reglement-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0.22rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.reglement-badge.is-paid {
+  border: 1px solid #86efac;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.reglement-badge.is-unpaid {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+}
+
+.mission-card-badges {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .page-breadcrumb {
@@ -2140,6 +2243,16 @@ legend::before {
     padding: 0.5rem 0.9rem;
     min-height: 0;
     white-space: nowrap;
+  }
+
+  .mission-title-row {
+    align-items: flex-start;
+  }
+
+  .reglement-toggle {
+    min-height: 34px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.85rem;
   }
 
   .section-tabs {

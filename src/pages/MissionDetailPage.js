@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   getMission,
   updateMissionStatus,
+  updateMissionReglement,
   uploadMissionPhotos,
   deleteMissionPhoto,
   uploadMissionDocuments,
@@ -118,6 +119,7 @@ const GUARANTEE_LABELS = {
   'bris de glace': 'Bris de glace',
   tierce: 'Tierce',
   rc: 'RC',
+  'rc 50%': 'RC 50%',
 };
 
 const guaranteeRequiresFranchise = (value) => {
@@ -134,6 +136,18 @@ const isTierceGuarantee = (value) => {
   }
   const normalized = String(value).trim().toLowerCase();
   return normalized === 'tierce' || normalized === 'bris de glace' || normalized === 'dommage collision';
+};
+
+const isRc50Guarantee = (value) => String(value || '').trim().toLowerCase() === 'rc 50%';
+
+const getEffectiveResponsibility = (guaranteeType, responsibilityValue) => {
+  if (
+    isRc50Guarantee(guaranteeType) &&
+    (responsibilityValue === null || responsibilityValue === undefined || responsibilityValue === '')
+  ) {
+    return '50%';
+  }
+  return responsibilityValue;
 };
 
 const formatGuaranteeType = (value) => {
@@ -238,6 +252,7 @@ const MissionDetailPage = () => {
   const [photoActionError, setPhotoActionError] = useState('');
   const [documentActionError, setDocumentActionError] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [reglementUpdating, setReglementUpdating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -271,9 +286,11 @@ const MissionDetailPage = () => {
     const rate = Number(mission.garantieFranchiseTaux) || 0;
     const fixed = Number(mission.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalEvaluationTtc;
-    const franchise = Math.max(percentValue, fixed);
+    const franchise = guaranteeRequiresFranchise(mission.garantieType) ? Math.max(percentValue, fixed) : 0;
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
-    const responsibilityValue = isTierceGuarantee(mission.garantieType) ? '0%' : mission.responsabilite;
+    const responsibilityValue = isTierceGuarantee(mission.garantieType)
+      ? '0%'
+      : getEffectiveResponsibility(mission.garantieType, mission.responsabilite);
     return {
       missionFranchiseAmount: franchise,
       missionRecommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, responsibilityValue),
@@ -515,6 +532,22 @@ const MissionDetailPage = () => {
     }
   };
 
+  const handleReglementToggle = async () => {
+    if (!mission || reglementUpdating) {
+      return;
+    }
+    setReglementUpdating(true);
+    try {
+      const updated = await updateMissionReglement(token, id, !mission.regle);
+      setMission(updated);
+      pushToast('success', updated.regle ? 'Dossier marque comme regle.' : 'Dossier marque comme non regle.');
+    } catch (err) {
+      pushToast('error', err.message || 'Mise a jour du reglement impossible');
+    } finally {
+      setReglementUpdating(false);
+    }
+  };
+
   const handleExportReport = async () =>
     downloadMissionPdf('report', `rapport-mission-${id}.pdf`, setExporting, 'Export PDF termine.', 'Export impossible');
 
@@ -583,6 +616,11 @@ const MissionDetailPage = () => {
     [photos]
   );
 
+  const photosEnCours = useMemo(
+    () => photos.filter((photo) => (photo.phase || 'avant') === 'en_cours'),
+    [photos]
+  );
+
   const photosApres = useMemo(
     () => photos.filter((photo) => (photo.phase || 'avant') === 'apres'),
     [photos]
@@ -638,7 +676,22 @@ const MissionDetailPage = () => {
             <span>/</span>
             <span className="breadcrumb-chip">Mission {missionLabel}</span>
           </div>
-          <h1>Mission {missionLabel}</h1>
+          <div className="mission-title-row">
+            <h1>Mission {missionLabel}</h1>
+            <button
+              type="button"
+              className={`reglement-toggle ${mission.regle ? 'is-checked' : ''}`}
+              role="checkbox"
+              aria-checked={Boolean(mission.regle)}
+              onClick={handleReglementToggle}
+              disabled={reglementUpdating}
+            >
+              <span className="reglement-check" aria-hidden="true">
+                {mission.regle ? '✓' : ''}
+              </span>
+              <span>{reglementUpdating ? 'Mise a jour...' : 'Réglé'}</span>
+            </button>
+          </div>
           <div className="header-chip-list">
             <span className="header-chip">
               Derniere mise a jour {mission.updatedAt ? dayjs(mission.updatedAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
@@ -904,7 +957,10 @@ const MissionDetailPage = () => {
               )}
             </div>
             <div className="info-grid">
-              {infoItem('Responsabilite', formatResponsabilite(mission.responsabilite))}
+              {infoItem(
+                'Responsabilite',
+                formatResponsabilite(getEffectiveResponsibility(mission.garantieType, mission.responsabilite))
+              )}
             </div>
             <div className="info-grid">
               {infoItem('Reforme', formatReforme(mission.reformeType))}
@@ -958,6 +1014,7 @@ const MissionDetailPage = () => {
                 <span>Phase</span>
                 <select value={uploadPhase} onChange={(event) => setUploadPhase(event.target.value)}>
                   <option value="avant">Avant</option>
+                  <option value="en_cours">En cours</option>
                   <option value="apres">Apres</option>
                 </select>
               </label>
@@ -1017,6 +1074,17 @@ const MissionDetailPage = () => {
             </div>
             <PhotoGallery
               photos={photosAvant}
+              canDelete={canManageAttachments}
+              onDelete={canManageAttachments ? handleDeletePhoto : undefined}
+            />
+          </div>
+          <div className="photo-phase-card">
+            <div className="photo-phase-header">
+              <h3>Phase &laquo; En cours &raquo;</h3>
+              <span className="muted">{photosEnCours.length} fichier(s)</span>
+            </div>
+            <PhotoGallery
+              photos={photosEnCours}
               canDelete={canManageAttachments}
               onDelete={canManageAttachments ? handleDeletePhoto : undefined}
             />

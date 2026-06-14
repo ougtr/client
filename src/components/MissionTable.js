@@ -70,6 +70,7 @@ const MissionTable = ({
           <tr>
             <th>Mission</th>
             <th>Statut</th>
+            <th>Règlement</th>
             <th>Assureur</th>
             <th>Assure</th>
             <th>Vehicule</th>
@@ -84,6 +85,11 @@ const MissionTable = ({
               <td>{mission.missionCode || mission.id}</td>
               <td>
                 <StatusBadge statut={mission.statut} />
+              </td>
+              <td>
+                <span className={`reglement-badge ${mission.regle ? 'is-paid' : 'is-unpaid'}`}>
+                  {mission.regle ? 'Réglé' : 'Non réglé'}
+                </span>
               </td>
               <td>
                 <div className="cell-main">{mission.assureurNom}</div>
@@ -138,7 +144,12 @@ const MissionTable = ({
                     <strong>Mission {mission.missionCode || mission.id}</strong>
                     <span className="cell-sub">{mission.vehiculeImmatriculation || '-'}</span>
                   </div>
-                  <StatusBadge statut={mission.statut} />
+                  <div className="mission-card-badges">
+                    <StatusBadge statut={mission.statut} />
+                    <span className={`reglement-badge ${mission.regle ? 'is-paid' : 'is-unpaid'}`}>
+                      {mission.regle ? 'Réglé' : 'Non réglé'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mission-card-grid">

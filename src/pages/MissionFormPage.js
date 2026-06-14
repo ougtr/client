@@ -171,6 +171,7 @@ const GUARANTEE_OPTIONS = [
   { value: 'bris de glace', label: 'Bris de glace' },
   { value: 'tierce', label: 'Tierce' },
   { value: 'rc', label: 'RC' },
+  { value: 'rc 50%', label: 'RC 50%' },
 ];
 
 const RESPONSIBILITY_OPTIONS = [
@@ -193,6 +194,18 @@ const isTierceGuarantee = (value) => {
   }
   const normalized = String(value).trim().toLowerCase();
   return normalized === 'tierce' || normalized === 'bris de glace' || normalized === 'dommage collision';
+};
+
+const isRc50Guarantee = (value) => String(value || '').trim().toLowerCase() === 'rc 50%';
+
+const getEffectiveResponsibility = (guaranteeType, responsibilityValue) => {
+  if (
+    isRc50Guarantee(guaranteeType) &&
+    (responsibilityValue === null || responsibilityValue === undefined || responsibilityValue === '')
+  ) {
+    return '50%';
+  }
+  return responsibilityValue;
 };
 
 const REFORME_OPTIONS = [
@@ -600,20 +613,21 @@ const MissionFormPage = ({ mode }) => {
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
   const totalTtcBrut = Math.max(0, laborTotals.grandTotalTtc || 0);
   const netEvaluationTtc = Math.max(0, totalTtcBrut - damageVetusteLoss);
-  const responsibilityPercent = parseResponsibilityPercent(form.responsabilite);
+  const effectiveResponsibility = getEffectiveResponsibility(form.garantieType, form.responsabilite);
+  const responsibilityPercent = parseResponsibilityPercent(effectiveResponsibility);
   const responsibilityApplies = !isTierceGuarantee(form.garantieType);
   const indemnisationSharePercent = responsibilityApplies ? Math.max(0, 100 - responsibilityPercent) : 100;
   const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
     const rate = Number(form.garantieFranchiseTaux) || 0;
     const fixed = Number(form.garantieFranchiseMontant) || 0;
     const percentValue = (rate / 100) * totalTtcBrut;
-    const franchise = Math.max(percentValue, fixed);
+    const franchise = showFranchiseFields ? Math.max(percentValue, fixed) : 0;
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
     return {
       franchiseAmount: franchise,
       recommendedIndemnisation: isTierceGuarantee(form.garantieType)
         ? amountAfterFranchise
-        : applyResponsibilityShare(amountAfterFranchise, form.responsabilite),
+        : applyResponsibilityShare(amountAfterFranchise, effectiveResponsibility),
     };
   }, [
     totalTtcBrut,
@@ -621,7 +635,8 @@ const MissionFormPage = ({ mode }) => {
     form.garantieFranchiseTaux,
     form.garantieFranchiseMontant,
     form.garantieType,
-    form.responsabilite,
+    effectiveResponsibility,
+    showFranchiseFields,
   ]);
 
   const handleIndemnisationRecalc = () => {
@@ -646,7 +661,11 @@ const MissionFormPage = ({ mode }) => {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'garantieType' && isRc50Guarantee(value) ? { responsabilite: '50%' } : {}),
+    }));
   };
 
   const handleAssureurChange = (event) => {
@@ -898,7 +917,7 @@ const handleDamageCheckboxChange = (event) => {
       requiresFranchise && form.garantieFranchiseMontant !== ''
         ? Number(form.garantieFranchiseMontant)
         : null;
-    payload.responsabilite = form.responsabilite || null;
+    payload.responsabilite = getEffectiveResponsibility(form.garantieType, form.responsabilite) || null;
     payload.synthese = form.synthese || null;
     payload.indemnisationFinale = form.indemnisationFinale !== '' ? Number(form.indemnisationFinale) : null;
     payload.reformeType = form.reformeType || null;

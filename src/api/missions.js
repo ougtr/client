@@ -14,6 +14,30 @@ const buildQueryString = (filters = {}) => {
 export const listMissions = (token, filters) =>
   request(`/missions${buildQueryString(filters)}`, { token });
 
+export const downloadMissionsExport = async (token) => {
+  const response = await fetch(`${API_URL}/missions/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let message = "Impossible de generer l'export des missions";
+    try {
+      const parsed = JSON.parse(errorText);
+      message = parsed.message || message;
+    } catch (error) {
+      if (errorText) {
+        message = errorText;
+      }
+    }
+    throw new Error(message);
+  }
+
+  return response.blob();
+};
+
 export const getMission = (token, id) =>
   request(`/missions/${id}`, { token });
 
@@ -25,6 +49,9 @@ export const updateMission = (token, id, data) =>
 
 export const updateMissionStatus = (token, id, statut) =>
   request(`/missions/${id}/status`, { method: 'PATCH', body: { statut }, token });
+
+export const updateMissionReglement = (token, id, regle) =>
+  request(`/missions/${id}/reglement`, { method: 'PATCH', body: { regle }, token });
 
 export const uploadMissionPhotos = (token, id, files, { phase, label }) => {
   const formData = new FormData();

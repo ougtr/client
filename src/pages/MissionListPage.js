@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { useAuth } from '../context/AuthContext';
-import { listMissions, deleteMission, updateMission, updateMissionStatus } from '../api/missions';
+import {
+  listMissions,
+  deleteMission,
+  updateMission,
+  updateMissionStatus,
+  downloadMissionsExport,
+} from '../api/missions';
 import { listUsers } from '../api/users';
 import MissionFilters from '../components/MissionFilters';
 import MissionTable from '../components/MissionTable';
@@ -34,6 +40,7 @@ const MissionListPage = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const pushToast = (type, message) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -149,6 +156,29 @@ const MissionListPage = () => {
 
   const handleEditMission = (id) => {
     navigate(`/missions/${id}/edit`);
+  };
+
+  const handleExportMissions = async () => {
+    setError('');
+    setExporting(true);
+    try {
+      const blob = await downloadMissionsExport(token);
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = dayjs().format('YYYY-MM-DD');
+      link.href = blobUrl;
+      link.download = `export-missions-${date}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      pushToast('success', 'Export des missions termine.');
+    } catch (err) {
+      setError(err.message || "Impossible de generer l'export des missions");
+      pushToast('error', err.message || "Impossible de generer l'export des missions");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleDeleteMission = async (missionId) => {
@@ -277,11 +307,21 @@ const MissionListPage = () => {
             <span className="header-chip">{totalItems} mission(s)</span>
           </div>
         </div>
-        {isManager && (
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/missions/new')}>
-            Nouvelle mission
+        <div className="header-actions">
+          <button
+            type="button"
+            className="btn btn-excel"
+            onClick={handleExportMissions}
+            disabled={exporting}
+          >
+            {exporting ? 'Export en cours...' : 'Exporter missions'}
           </button>
-        )}
+          {isManager && (
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/missions/new')}>
+              Nouvelle mission
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card">

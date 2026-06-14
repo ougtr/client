@@ -34,6 +34,14 @@ const MissionFilters = ({ filters, onChange, onReset, statuses, assignees = [], 
             ))}
           </select>
         </label>
+        <label className="form-field">
+          <span>Règlement</span>
+          <select name="regle" value={filters.regle || ''} onChange={handleChange}>
+            <option value="">Tous les dossiers</option>
+            <option value="true">Réglés</option>
+            <option value="false">Non réglés</option>
+          </select>
+        </label>
         {isManager && (
           <SearchableSelect
             label="Responsable"
