@@ -285,7 +285,7 @@ const PreliminaryContradictoirePreviewPage = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(blobUrl);
-      pushToast('success', 'PDF généré et ajouté aux documents de la mission.');
+      pushToast('success', 'PDF généré et téléchargé.');
     } catch (err) {
       setError(err.message || 'Impossible de générer le rapport');
       pushToast('error', err.message || 'Impossible de générer le rapport');
@@ -349,7 +349,7 @@ const PreliminaryContradictoirePreviewPage = () => {
 
       <section className="card">
         <p className="muted preliminary-preview-note">
-          Chaque génération télécharge le PDF et ajoute automatiquement une copie dans la section documents de la
+          Chaque génération télécharge directement le PDF. Il n'est pas ajouté automatiquement aux documents de la
           mission.
         </p>
         <div className="preliminary-paper-stack">

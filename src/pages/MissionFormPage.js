@@ -53,6 +53,7 @@ const emptyForm = {
   valeurVenale: '',
   valeurEpaves: '',
   indemnisationFinale: '',
+  montantDevisInitial: '',
   synthese: '',
 };
 
@@ -454,6 +455,10 @@ const MissionFormPage = ({ mode }) => {
           indemnisationFinale:
             mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
               ? String(mission.indemnisationFinale)
+              : '',
+          montantDevisInitial:
+            mission.montantDevisInitial !== null && mission.montantDevisInitial !== undefined
+              ? String(mission.montantDevisInitial)
               : '',
           missionCode: mission.missionCode || '',
           synthese: mission.synthese || '',
@@ -920,6 +925,7 @@ const handleDamageCheckboxChange = (event) => {
     payload.responsabilite = getEffectiveResponsibility(form.garantieType, form.responsabilite) || null;
     payload.synthese = form.synthese || null;
     payload.indemnisationFinale = form.indemnisationFinale !== '' ? Number(form.indemnisationFinale) : null;
+    payload.montantDevisInitial = form.montantDevisInitial !== '' ? Number(form.montantDevisInitial) : null;
     payload.reformeType = form.reformeType || null;
     payload.valeurAssuree = form.valeurAssuree !== '' ? Number(form.valeurAssuree) : null;
     payload.valeurVenale = form.valeurVenale !== '' ? Number(form.valeurVenale) : null;
@@ -1250,6 +1256,19 @@ const handleDamageCheckboxChange = (event) => {
 
         <fieldset className={`form-section-panel ${isSectionActive('remise') ? 'active' : ''}`}>
           <legend>Evaluation de la remise en etat</legend>
+            <div className="form-grid">
+              <label className="form-field">
+                <span>Montant devis initial (MAD)</span>
+                <input
+                  name="montantDevisInitial"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.montantDevisInitial}
+                  onChange={handleChange}
+                />
+              </label>
+            </div>
             {laborError && <div className="alert alert-error">{laborError}</div>}
             <div className="table-wrapper damage-table">
               <table>

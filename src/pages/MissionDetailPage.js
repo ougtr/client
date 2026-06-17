@@ -192,6 +192,17 @@ const formatCurrencyValue = (value) => {
   return display;
 };
 
+const formatOptionalPositiveCurrencyValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  const num = Number(value);
+  if (Number.isFinite(num) && num === 0) {
+    return '-';
+  }
+  return Number.isFinite(num) ? `${num.toFixed(2)} MAD` : `${value} MAD`;
+};
+
 const formatReforme = (value) => {
   if (!value) {
     return '-';
@@ -905,6 +916,10 @@ const MissionDetailPage = () => {
               </table>
             </div>
             <div className="damage-totals">
+              <div>
+                <strong>Montant devis initial :</strong>{' '}
+                {formatOptionalPositiveCurrencyValue(mission.montantDevisInitial)}
+              </div>
               <div>
                 <strong>Total main d'œuvre HT :</strong> {laborTotals.totalHt.toFixed(2)} MAD
               </div>
