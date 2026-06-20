@@ -129,7 +129,7 @@ const buildInitialForm = (data) => {
       valeurEpave: valeurEpave ? valeurEpave.toFixed(2) : '',
       valueDifference,
       companyLabel: mission.assureurNom || '',
-      cabinetLabel: 'OPALE EXPERTISE',
+      cabinetLabel: 'Expert auto',
     },
     secondExpert: {
       repairSelected: false,
@@ -388,7 +388,7 @@ const PreliminaryContradictoirePreviewPage = () => {
             <div className="preliminary-text-block">
               <p className="strong">Entre les soussignés :</p>
               <p>
-                <strong>OPALE EXPERTISE</strong>, désigné par la compagnie{' '}
+                <strong>Expert auto</strong>, désigné par la compagnie{' '}
                 <InlineInput value={form.firstExpertInsurer} onChange={updateField('firstExpertInsurer')} className="w-sm" />{' '}
                 assureur du véhicule{' '}
                 <InlineInput

@@ -16,7 +16,7 @@ import ToastStack from '../components/ToastStack';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { MISSION_STATUSES } from '../constants';
 
-const ASSIGNABLE_ROLES = ['GESTIONNAIRE', 'AGENT'];
+const ASSIGNABLE_ROLES = ['ADMIN_CABINET', 'GESTIONNAIRE', 'AGENT'];
 
 const MissionListPage = () => {
   const { token, isManager } = useAuth();

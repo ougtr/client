@@ -47,7 +47,8 @@ export const AuthProvider = ({ children }) => {
       user,
       login,
       logout,
-      isManager: user?.role === 'GESTIONNAIRE',
+      isSuperAdmin: user?.role === 'SUPER_ADMIN',
+      isManager: user?.role === 'ADMIN_CABINET' || user?.role === 'GESTIONNAIRE',
       isAgent: user?.role === 'AGENT',
     }),
     [token, user, login, logout]

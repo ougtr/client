@@ -1,7 +1,7 @@
 const API_URL =
   typeof window !== 'undefined'
     ? `${window.location.origin.replace(/\/$/, '')}/api`
-    : process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
+    : process.env.REACT_APP_API_URL || 'http://localhost:4001/api';
 const ASSET_URL = API_URL.replace(/\/api$/, '');
 
 const clearSessionAndRedirect = () => {

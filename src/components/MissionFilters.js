@@ -1,6 +1,7 @@
 import SearchableSelect from './SearchableSelect';
 
 const ROLE_LABELS = {
+  ADMIN_CABINET: 'Admin cabinet',
   GESTIONNAIRE: 'Gestionnaire',
   AGENT: 'Agent',
 };

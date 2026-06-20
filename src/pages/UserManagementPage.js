@@ -4,6 +4,12 @@ import { createUser, deleteUser, listUsers, updateUser } from '../api/users';
 
 const initialCreate = { login: '', password: '', role: 'AGENT' };
 
+const roleOptions = [
+  { value: 'ADMIN_CABINET', label: 'Admin cabinet' },
+  { value: 'GESTIONNAIRE', label: 'Gestionnaire' },
+  { value: 'AGENT', label: 'Agent' },
+];
+
 const UserManagementPage = () => {
   const { token, isManager, user } = useAuth();
   const [users, setUsers] = useState([]);
@@ -133,8 +139,9 @@ const UserManagementPage = () => {
           <label className="form-field">
             <span>Role</span>
             <select name="role" value={createForm.role} onChange={handleCreateChange}>
-              <option value="GESTIONNAIRE">Gestionnaire</option>
-              <option value="AGENT">Agent</option>
+              {roleOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
           <button type="submit" className="btn btn-primary">Creer</button>
@@ -165,8 +172,9 @@ const UserManagementPage = () => {
                         value={edits[item.id]?.role || ''}
                         onChange={(event) => handleEditChange(item.id, 'role', event.target.value)}
                       >
-                        <option value="GESTIONNAIRE">Gestionnaire</option>
-                        <option value="AGENT">Agent</option>
+                        {roleOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
                       </select>
                     </td>
                     <td>

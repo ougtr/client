@@ -7,11 +7,11 @@ const Logo = ({ size = 'md', withText = false, className = '' }) => {
   return (
     <div className={classes}>
       <img
-        src="/opale.jpg"
-        alt="Opale Assistance"
+        src="/default-logo.png"
+        alt="Expert auto"
         loading="lazy"
       />
-      {withText && <span className="logo-text">Gestion Missions Auto</span>}
+      {withText && <span className="logo-text">Expert auto</span>}
     </div>
   );
 };

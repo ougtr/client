@@ -4,7 +4,7 @@ import Logo from './Logo';
 
 const AppLayout = () => {
   const navigate = useNavigate();
-  const { user, logout, isManager } = useAuth();
+  const { user, logout, isManager, isSuperAdmin } = useAuth();
 
   const handleLogout = () => {
     logout();
@@ -16,11 +16,13 @@ const AppLayout = () => {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/missions" className="brand" aria-label="Gestion Missions Auto">
+        <Link to="/missions" className="brand" aria-label="Expert auto">
           <Logo size="md" withText />
         </Link>
         <div className="header-actions">
-          <span className="user-info">{user?.login} ({user?.role})</span>
+          <span className="user-info">
+            {user?.login} ({user?.role}){user?.tenantNom ? ` - ${user.tenantNom}` : ''}
+          </span>
           <button type="button" className="btn btn-secondary" onClick={handleLogout}>
             Deconnexion
           </button>
@@ -30,6 +32,11 @@ const AppLayout = () => {
         <NavLink to="/missions" className={navClass} end>
           Missions
         </NavLink>
+        {isSuperAdmin && (
+          <NavLink to="/tenants" className={navClass}>
+            Cabinets
+          </NavLink>
+        )}
         {isManager && (
           <>
             <NavLink to="/missions/new" className={navClass}>
@@ -37,6 +44,9 @@ const AppLayout = () => {
             </NavLink>
             <NavLink to="/users" className={navClass}>
               Utilisateurs
+            </NavLink>
+            <NavLink to="/tenant-settings" className={navClass}>
+              Parametres cabinet
             </NavLink>
             <NavLink to="/insurers" className={navClass}>
               Assureurs

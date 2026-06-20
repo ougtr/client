@@ -9,6 +9,8 @@ import MissionFormPage from './pages/MissionFormPage';
 import MissionListPage from './pages/MissionListPage';
 import PreliminaryContradictoirePreviewPage from './pages/PreliminaryContradictoirePreviewPage';
 import UserManagementPage from './pages/UserManagementPage';
+import TenantManagementPage from './pages/TenantManagementPage';
+import TenantSettingsPage from './pages/TenantSettingsPage';
 import InsurersPage from './pages/InsurersPage';
 import VehicleBrandsPage from './pages/VehicleBrandsPage';
 import GaragesPage from './pages/GaragesPage';
@@ -29,6 +31,8 @@ const App = () => (
           />
           <Route path="/missions/:id/damage-notice-preview" element={<DamageNoticePreviewPage />} />
           <Route path="/missions/:id/edit" element={<MissionFormPage mode="edit" />} />
+          <Route path="/tenants" element={<TenantManagementPage />} />
+          <Route path="/tenant-settings" element={<TenantSettingsPage />} />
           <Route path="/users" element={<UserManagementPage />} />
           <Route path="/insurers" element={<InsurersPage />} />
           <Route path="/vehicle-brands" element={<VehicleBrandsPage />} />

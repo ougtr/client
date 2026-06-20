@@ -63,7 +63,7 @@ const buildInitialForm = (data) => {
     salutation: 'Messieurs,',
     waitingLine: "Dans l'attente de vous lire,",
     closingLine: "Veuillez agreer, Messieurs, l'expression de mes salutations distinguees.",
-    signatureLabel: 'OPALE EXPERTISE',
+    signatureLabel: 'Expert auto',
   };
 };
 
@@ -359,7 +359,7 @@ const DamageNoticePreviewPage = () => {
             <div className="damage-notice-signature">
               <InlineInput value={form.signatureLabel} onChange={updateField('signatureLabel')} className="w-md" />
             </div>
-            <div className="damage-notice-stamp-hint">Cachet OPALE applique a la generation du PDF</div>
+            <div className="damage-notice-stamp-hint">Cachet Expert auto applique a la generation du PDF</div>
           </div>
         </div>
       </section>

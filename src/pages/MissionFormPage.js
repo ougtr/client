@@ -57,8 +57,9 @@ const emptyForm = {
   synthese: '',
 };
 
-const ASSIGNABLE_ROLES = ['GESTIONNAIRE', 'AGENT'];
+const ASSIGNABLE_ROLES = ['ADMIN_CABINET', 'GESTIONNAIRE', 'AGENT'];
 const ROLE_LABELS = {
+  ADMIN_CABINET: 'Admin cabinet',
   GESTIONNAIRE: 'Gestionnaire',
   AGENT: 'Agent',
 };
