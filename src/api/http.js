@@ -1,7 +1,8 @@
-const API_URL =
+const DEFAULT_API_URL =
   typeof window !== 'undefined'
-    ? `${window.location.origin.replace(/\/$/, '')}/api`
-    : process.env.REACT_APP_API_URL || 'http://localhost:4001/api';
+    ? `${window.location.protocol}//${window.location.hostname}:4001/api`
+    : 'http://localhost:4001/api';
+const API_URL = process.env.REACT_APP_API_URL || DEFAULT_API_URL;
 const ASSET_URL = API_URL.replace(/\/api$/, '');
 
 const clearSessionAndRedirect = () => {
