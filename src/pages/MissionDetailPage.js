@@ -290,26 +290,36 @@ const MissionDetailPage = () => {
   const missionLabel = mission?.missionCode ? mission.missionCode : mission ? `#${mission.id}` : '#';
   const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
   const netEvaluationTtc = Math.max(0, totalEvaluationTtc - damageVetusteLoss);
-  const { missionFranchiseAmount, missionRecommendedIndemnisation } = useMemo(() => {
+  const { missionFranchiseAmount, missionRecommendedIndemnisation, missionPreviousRecommendedIndemnisation } = useMemo(() => {
     if (!mission) {
-      return { missionFranchiseAmount: 0, missionRecommendedIndemnisation: 0 };
+      return {
+        missionFranchiseAmount: 0,
+        missionRecommendedIndemnisation: 0,
+        missionPreviousRecommendedIndemnisation: 0,
+      };
     }
     const rate = Number(mission.garantieFranchiseTaux) || 0;
     const fixed = Number(mission.garantieFranchiseMontant) || 0;
-    const percentValue = (rate / 100) * totalEvaluationTtc;
+    const percentValue = (rate / 100) * netEvaluationTtc;
+    const previousPercentValue = (rate / 100) * totalEvaluationTtc;
     const franchise = guaranteeRequiresFranchise(mission.garantieType) ? Math.max(percentValue, fixed) : 0;
+    const previousFranchise = guaranteeRequiresFranchise(mission.garantieType) ? Math.max(previousPercentValue, fixed) : 0;
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
+    const previousAmountAfterFranchise = Math.max(0, netEvaluationTtc - previousFranchise);
     const responsibilityValue = isTierceGuarantee(mission.garantieType)
       ? '0%'
       : getEffectiveResponsibility(mission.garantieType, mission.responsabilite);
     return {
       missionFranchiseAmount: franchise,
       missionRecommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, responsibilityValue),
+      missionPreviousRecommendedIndemnisation: applyResponsibilityShare(previousAmountAfterFranchise, responsibilityValue),
     };
   }, [mission, totalEvaluationTtc, netEvaluationTtc]);
   const displayedIndemnisation =
     mission && mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
-      ? Number(mission.indemnisationFinale)
+      ? Math.abs(Number(mission.indemnisationFinale) - missionPreviousRecommendedIndemnisation) <= 0.01
+        ? missionRecommendedIndemnisation
+        : Number(mission.indemnisationFinale)
       : missionRecommendedIndemnisation;
 
   const filteredLabels = useMemo(() => {
