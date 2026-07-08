@@ -626,7 +626,7 @@ const MissionFormPage = ({ mode }) => {
   const { franchiseAmount, recommendedIndemnisation } = useMemo(() => {
     const rate = Number(form.garantieFranchiseTaux) || 0;
     const fixed = Number(form.garantieFranchiseMontant) || 0;
-    const percentValue = (rate / 100) * totalTtcBrut;
+    const percentValue = (rate / 100) * netEvaluationTtc;
     const franchise = showFranchiseFields ? Math.max(percentValue, fixed) : 0;
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
     return {
@@ -636,7 +636,6 @@ const MissionFormPage = ({ mode }) => {
         : applyResponsibilityShare(amountAfterFranchise, effectiveResponsibility),
     };
   }, [
-    totalTtcBrut,
     netEvaluationTtc,
     form.garantieFranchiseTaux,
     form.garantieFranchiseMontant,
@@ -1404,7 +1403,7 @@ const handleDamageCheckboxChange = (event) => {
                 </div>
                 <small className="muted">
                   Calcul = (TTC brut {totalTtcBrut.toFixed(2)} MAD - vetuste {damageVetusteLoss.toFixed(2)} MAD)
-                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculee sur TTC brut), puis x{' '}
+                  - Franchise ({franchiseAmount.toFixed(2)} MAD, calculee apres vetuste), puis x{' '}
                   {indemnisationSharePercent.toFixed(0)}%
                   {responsibilityApplies
                     ? ' selon la responsabilite'
