@@ -897,6 +897,90 @@ legend::before {
   align-items: flex-end;
 }
 
+.tenant-row-cell {
+  padding: 0;
+}
+
+.tenant-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+}
+
+.tenant-row-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tenant-row-info > span {
+  color: #64748b;
+}
+
+.status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-inactive {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tenant-users-panel {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.tenant-users-panel h3 {
+  margin-top: 0;
+}
+
+.tenant-user-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.tenant-users-table input {
+  min-width: 180px;
+}
+
+.visible-password {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.visible-password span,
+.password-alert span {
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+  font-weight: 700;
+}
+
+.password-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.muted-text {
+  color: #64748b;
+}
+
+.empty-cell {
+  text-align: center;
+  color: #64748b;
+}
+
 .tenant-settings-form {
   gap: 1rem;
 }
