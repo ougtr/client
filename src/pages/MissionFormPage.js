@@ -54,6 +54,7 @@ const emptyForm = {
   valeurEpaves: '',
   indemnisationFinale: '',
   montantDevisInitial: '',
+  deduireTva: false,
   synthese: '',
 };
 
@@ -460,6 +461,7 @@ const MissionFormPage = ({ mode }) => {
             mission.montantDevisInitial !== null && mission.montantDevisInitial !== undefined
               ? String(mission.montantDevisInitial)
               : '',
+          deduireTva: Boolean(mission.deduireTva),
           missionCode: mission.missionCode || '',
           synthese: mission.synthese || '',
           garageId: mission.garageId ? String(mission.garageId) : '',
@@ -618,6 +620,7 @@ const MissionFormPage = ({ mode }) => {
   const damageVetusteLoss = Math.max(0, damageTotals.totalTtc - damageTotals.totalAfterTtc);
   const totalTtcBrut = Math.max(0, laborTotals.grandTotalTtc || 0);
   const netEvaluationTtc = Math.max(0, totalTtcBrut - damageVetusteLoss);
+  const tvaDeductionAmount = form.deduireTva ? Math.max(0, laborTotals.grandTotalTva || 0) : 0;
   const effectiveResponsibility = getEffectiveResponsibility(form.garantieType, form.responsabilite);
   const responsibilityPercent = parseResponsibilityPercent(effectiveResponsibility);
   const responsibilityApplies = !isTierceGuarantee(form.garantieType);
@@ -628,14 +631,16 @@ const MissionFormPage = ({ mode }) => {
     const percentValue = (rate / 100) * netEvaluationTtc;
     const franchise = showFranchiseFields ? Math.max(percentValue, fixed) : 0;
     const amountAfterFranchise = Math.max(0, netEvaluationTtc - franchise);
+    const baseIndemnisation = isTierceGuarantee(form.garantieType)
+      ? amountAfterFranchise
+      : applyResponsibilityShare(amountAfterFranchise, effectiveResponsibility);
     return {
       franchiseAmount: franchise,
-      recommendedIndemnisation: isTierceGuarantee(form.garantieType)
-        ? amountAfterFranchise
-        : applyResponsibilityShare(amountAfterFranchise, effectiveResponsibility),
+      recommendedIndemnisation: Math.max(0, baseIndemnisation - tvaDeductionAmount),
     };
   }, [
     netEvaluationTtc,
+    tvaDeductionAmount,
     form.garantieFranchiseTaux,
     form.garantieFranchiseMontant,
     form.garantieType,
@@ -664,11 +669,12 @@ const MissionFormPage = ({ mode }) => {
   }, [netEvaluationTtc, form.indemnisationFinale, isEdit, recommendedIndemnisation]);
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const { name, value, type, checked } = event.target;
+    const nextValue = type === 'checkbox' ? checked : value;
     setForm((prev) => ({
       ...prev,
-      [name]: value,
-      ...(name === 'garantieType' && isRc50Guarantee(value) ? { responsabilite: '50%' } : {}),
+      [name]: nextValue,
+      ...(name === 'garantieType' && isRc50Guarantee(nextValue) ? { responsabilite: '50%' } : {}),
     }));
   };
 
@@ -868,6 +874,7 @@ const handleDamageCheckboxChange = (event) => {
     setLaborSaving(true);
     try {
       const response = await saveLabors(token, id, buildLaborPayload());
+      await updateMission(token, id, { deduireTva: Boolean(form.deduireTva) });
       setLabors(buildLaborEntries(response.entries || []));
       const updatedHt = response.totals?.suppliesHt || 0;
       const updatedTtc =
@@ -925,6 +932,7 @@ const handleDamageCheckboxChange = (event) => {
     payload.synthese = form.synthese || null;
     payload.indemnisationFinale = form.indemnisationFinale !== '' ? Number(form.indemnisationFinale) : null;
     payload.montantDevisInitial = form.montantDevisInitial !== '' ? Number(form.montantDevisInitial) : null;
+    payload.deduireTva = Boolean(form.deduireTva);
     payload.reformeType = form.reformeType || null;
     payload.valeurAssuree = form.valeurAssuree !== '' ? Number(form.valeurAssuree) : null;
     payload.valeurVenale = form.valeurVenale !== '' ? Number(form.valeurVenale) : null;
@@ -1353,6 +1361,17 @@ const handleDamageCheckboxChange = (event) => {
             </div>
             {isEdit && (
               <div className="form-actions">
+                <label className="checkbox-field">
+                  <span className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      name="deduireTva"
+                      checked={Boolean(form.deduireTva)}
+                      onChange={handleChange}
+                    />
+                    Déduire TVA
+                  </span>
+                </label>
                 <button type="button" className="btn btn-primary" onClick={handleLaborSave} disabled={laborSaving}>
                   Enregistrer la main d'oeuvre
                 </button>
@@ -1385,6 +1404,11 @@ const handleDamageCheckboxChange = (event) => {
                   <strong>Franchise calcule :</strong> {franchiseAmount.toFixed(2)} MAD
                 </div>
               )}
+              {form.deduireTva && (
+                <div>
+                  <strong>TVA deduite :</strong> {tvaDeductionAmount.toFixed(2)} MAD
+                </div>
+              )}
               <div className="form-field">
                 <span>Montant final de l'indemnisation (MAD)</span>
                 <div className="inline-input">
@@ -1407,6 +1431,7 @@ const handleDamageCheckboxChange = (event) => {
                   {responsibilityApplies
                     ? ' selon la responsabilite'
                     : ' (responsabilite ignoree pour garantie dommage collision/tierce/bris de glace)'}
+                  {form.deduireTva ? ` - TVA (${tvaDeductionAmount.toFixed(2)} MAD)` : ''}
                 </small>
             </div>
           </div>

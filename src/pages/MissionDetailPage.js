@@ -290,6 +290,7 @@ const MissionDetailPage = () => {
   const missionLabel = mission?.missionCode ? mission.missionCode : mission ? `#${mission.id}` : '#';
   const totalEvaluationTtc = laborTotals.grandTotalTtc || 0;
   const netEvaluationTtc = Math.max(0, totalEvaluationTtc - damageVetusteLoss);
+  const tvaDeductionAmount = mission?.deduireTva ? Math.max(0, laborTotals.grandTotalTva || 0) : 0;
   const { missionFranchiseAmount, missionRecommendedIndemnisation, missionPreviousRecommendedIndemnisation } = useMemo(() => {
     if (!mission) {
       return {
@@ -309,17 +310,20 @@ const MissionDetailPage = () => {
     const responsibilityValue = isTierceGuarantee(mission.garantieType)
       ? '0%'
       : getEffectiveResponsibility(mission.garantieType, mission.responsabilite);
+    const baseIndemnisation = applyResponsibilityShare(amountAfterFranchise, responsibilityValue);
+    const previousBaseIndemnisation = applyResponsibilityShare(previousAmountAfterFranchise, responsibilityValue);
     return {
       missionFranchiseAmount: franchise,
-      missionRecommendedIndemnisation: applyResponsibilityShare(amountAfterFranchise, responsibilityValue),
-      missionPreviousRecommendedIndemnisation: applyResponsibilityShare(previousAmountAfterFranchise, responsibilityValue),
+      missionRecommendedIndemnisation: Math.max(0, baseIndemnisation - tvaDeductionAmount),
+      missionPreviousRecommendedIndemnisation: Math.max(0, previousBaseIndemnisation - tvaDeductionAmount),
     };
-  }, [mission, totalEvaluationTtc, netEvaluationTtc]);
+  }, [mission, totalEvaluationTtc, netEvaluationTtc, tvaDeductionAmount]);
   const displayedIndemnisation =
     mission && mission.indemnisationFinale !== null && mission.indemnisationFinale !== undefined
-      ? Math.abs(Number(mission.indemnisationFinale) - missionPreviousRecommendedIndemnisation) <= 0.01
+      ? Math.abs(Number(mission.indemnisationFinale) - missionPreviousRecommendedIndemnisation) <= 0.01 ||
+        Math.abs(Number(mission.indemnisationFinale) - missionRecommendedIndemnisation - tvaDeductionAmount) <= 0.01
         ? missionRecommendedIndemnisation
-        : Number(mission.indemnisationFinale)
+        : Math.max(0, Number(mission.indemnisationFinale) - tvaDeductionAmount)
       : missionRecommendedIndemnisation;
 
   const filteredLabels = useMemo(() => {
@@ -954,6 +958,11 @@ const MissionDetailPage = () => {
               {guaranteeRequiresFranchise(mission.garantieType) && (
                 <div>
                   <strong>Franchise calculé :</strong> {missionFranchiseAmount.toFixed(2)} MAD
+                </div>
+              )}
+              {mission.deduireTva && (
+                <div>
+                  <strong>TVA déduite :</strong> {tvaDeductionAmount.toFixed(2)} MAD
                 </div>
               )}
               <div>
